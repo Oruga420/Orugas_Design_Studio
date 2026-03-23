@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { generateImages, rewritePromptAsJson, suggestAdvancedField, ImageOptions } from './services/gemini';
 import { 
   Loader2, Download, Sparkles, Image as ImageIcon, 
-  Settings2, Key, Sliders, Layout, Zap, Code, 
+  Settings2, Sliders, Layout, Zap, Code,
   Camera, Maximize, Sun, Palette, Brush, ChevronRight, ChevronLeft,
   Upload, Link as LinkIcon, Clipboard, X, Plus, ZoomIn, ZoomOut, RotateCcw
 } from 'lucide-react';
@@ -31,16 +31,6 @@ import {
   MorphingDialogContainer,
 } from './components/ui/morphing-dialog';
 
-// Declare window.aistudio for TypeScript
-declare global {
-  interface Window {
-    aistudio: {
-      hasSelectedApiKey: () => Promise<boolean>;
-      openSelectKey: () => Promise<void>;
-    };
-  }
-}
-
 const ASPECT_RATIOS = ["1:1", "1:4", "1:8", "2:3", "3:2", "3:4", "4:1", "4:3", "4:5", "5:4", "8:1", "9:16", "16:9", "21:9"];
 const RESOLUTIONS = ["512", "1K", "2K", "4K"];
 
@@ -54,7 +44,6 @@ export default function App() {
   const [rewriting, setRewriting] = useState(false);
   const [suggesting, setSuggesting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [hasKey, setHasKey] = useState<boolean | null>(null);
   const [previewIdx, setPreviewIdx] = useState<number | null>(null);
   const [zoomScale, setZoomScale] = useState(1);
   const [zoomOffset, setZoomOffset] = useState({ x: 0, y: 0 });
@@ -85,30 +74,6 @@ export default function App() {
   });
 
   const screenSize = useScreenSize();
-
-  useEffect(() => {
-    checkKey();
-  }, []);
-
-  const checkKey = async () => {
-    // If GEMINI_API_KEY is set via env (e.g. Vercel), skip AI Studio check
-    if (process.env.GEMINI_API_KEY) {
-      setHasKey(true);
-      return;
-    }
-    try {
-      const selected = await window.aistudio.hasSelectedApiKey();
-      setHasKey(selected);
-    } catch (e) {
-      console.error("Error checking API key:", e);
-      setHasKey(false);
-    }
-  };
-
-  const handleSelectKey = async () => {
-    await window.aistudio.openSelectKey();
-    setHasKey(true);
-  };
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
@@ -143,12 +108,7 @@ export default function App() {
         setError("No images were generated. Please try a different prompt.");
       }
     } catch (err: any) {
-      if (err?.message?.includes("Requested entity was not found")) {
-        setError("API Key error. Please re-select your API key.");
-        setHasKey(false);
-      } else {
-        setError("Failed to generate images. Please try again.");
-      }
+      setError("Failed to generate images. Please try again.");
       console.error(err);
     } finally {
       setPendingCount(prev => prev - 1);
@@ -313,35 +273,6 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [previewIdx, images.length]);
-
-  if (hasKey === false) {
-    return (
-      <div className="min-h-screen bg-neutral-50 flex items-center justify-center p-4">
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="bg-white p-8 rounded-3xl shadow-xl border border-neutral-200 max-w-md w-full text-center"
-        >
-          <div className="w-16 h-16 bg-yellow-100 text-yellow-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
-            <Key className="w-8 h-8" />
-          </div>
-          <h2 className="text-2xl font-bold mb-4">API Key Required</h2>
-          <p className="text-neutral-500 mb-8">
-            Nano Banana 2 requires a paid API key from a Google Cloud project. 
-            Please select your key to continue.
-          </p>
-          <button
-            onClick={handleSelectKey}
-            className="w-full bg-neutral-900 text-white py-4 rounded-xl font-semibold hover:bg-neutral-800 transition-colors flex items-center justify-center gap-2"
-          >
-            Select API Key
-          </button>
-        </motion.div>
-      </div>
-    );
-  }
-
-  if (hasKey === null) return null;
 
   return (
     <div className="min-h-screen bg-[#F5F5DC] text-neutral-900 font-sans selection:bg-yellow-200 relative overflow-hidden">
