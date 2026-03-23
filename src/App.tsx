@@ -91,6 +91,11 @@ export default function App() {
   }, []);
 
   const checkKey = async () => {
+    // If GEMINI_API_KEY is set via env (e.g. Vercel), skip AI Studio check
+    if (process.env.GEMINI_API_KEY) {
+      setHasKey(true);
+      return;
+    }
     try {
       const selected = await window.aistudio.hasSelectedApiKey();
       setHasKey(selected);
