@@ -108,7 +108,8 @@ export default function App() {
         setError("No images were generated. Please try a different prompt.");
       }
     } catch (err: any) {
-      setError("Failed to generate images. Please try again.");
+      const detail = err?.message || (typeof err === 'string' ? err : JSON.stringify(err));
+      setError(`Failed to generate images: ${detail}`);
       console.error(err);
     } finally {
       setPendingCount(prev => prev - 1);

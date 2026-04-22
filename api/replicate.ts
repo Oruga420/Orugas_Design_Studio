@@ -77,22 +77,32 @@ export default async function handler(
       }
     );
 
-    const prediction = await createResp.json();
+    const rawText = await createResp.text();
+    let prediction: any = null;
+    try { prediction = rawText ? JSON.parse(rawText) : null; } catch { /* keep rawText */ }
 
     if (!createResp.ok) {
+      const msg = prediction?.detail || prediction?.error || rawText || createResp.statusText;
       res.status(createResp.status).json({
-        error: prediction?.detail || prediction?.error || 'Replicate request failed',
+        error: `Replicate ${createResp.status}: ${msg}`,
+        model: modelPath,
+        replicate: prediction || rawText,
       });
       return;
     }
 
-    const finalPrediction = prediction.status === 'succeeded' || prediction.status === 'failed'
+    const finalPrediction = prediction?.status === 'succeeded' || prediction?.status === 'failed'
       ? prediction
       : await pollPrediction(prediction.id, token);
 
     if (finalPrediction.status !== 'succeeded') {
+      const errDetail = typeof finalPrediction.error === 'string'
+        ? finalPrediction.error
+        : JSON.stringify(finalPrediction.error || finalPrediction);
       res.status(502).json({
-        error: finalPrediction.error || `Prediction ${finalPrediction.status}`,
+        error: `Prediction ${finalPrediction.status}: ${errDetail}`,
+        logs: finalPrediction.logs,
+        replicate: finalPrediction,
       });
       return;
     }

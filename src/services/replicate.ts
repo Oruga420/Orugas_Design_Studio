@@ -57,11 +57,21 @@ export async function generateWithReplicate(
     body: JSON.stringify({ model, input }),
   });
 
+  const rawText = await response.text();
+  let parsed: any = null;
+  try { parsed = rawText ? JSON.parse(rawText) : null; } catch { /* keep rawText */ }
+
   if (!response.ok) {
-    const err = await response.json().catch(() => ({ error: response.statusText }));
-    throw new Error(err.error || `Replicate proxy failed with status ${response.status}`);
+    const base = parsed?.error || rawText || response.statusText;
+    const logs = parsed?.logs ? ` — logs: ${String(parsed.logs).slice(0, 400)}` : '';
+    throw new Error(`[Replicate proxy ${response.status}] ${base}${logs}`);
   }
 
-  const data = await response.json();
-  return { images: Array.isArray(data.images) ? data.images : [] };
+  const images = Array.isArray(parsed?.images) ? parsed.images : [];
+  if (images.length === 0) {
+    throw new Error(
+      `Replicate returned no images. Response: ${rawText.slice(0, 500)}`
+    );
+  }
+  return { images };
 }
