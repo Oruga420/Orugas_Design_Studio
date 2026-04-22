@@ -1,4 +1,5 @@
 import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
+import { generateWithReplicate } from "./replicate";
 
 const safetySettings = [
   {
@@ -34,7 +35,7 @@ export interface ImageOptions {
   useImageSearch?: boolean;
   thinkingLevel?: 'Minimal' | 'High';
   includeThoughts?: boolean;
-  model?: 'gemini-3.1-flash-image-preview' | 'gemini-3-pro-image-preview';
+  model?: 'gemini-3.1-flash-image-preview' | 'gemini-3-pro-image-preview' | 'imagen-4.0-generate-001' | 'openai/gpt-image-2';
   advanced?: {
     camera?: string;
     angle?: string;
@@ -55,6 +56,7 @@ export async function generateImages(
   const count = options.count || 1;
   const isEditing = !!options.baseImage;
   const isImagen = modelName.startsWith('imagen-') && !isEditing;
+  const isReplicate = modelName.startsWith('openai/');
   
   let finalPrompt = prompt;
   if (options.advanced) {
@@ -69,6 +71,19 @@ export async function generateImages(
     if (additions.length > 0) {
       finalPrompt = `${prompt}. Technical details: ${additions.join(", ")}.`;
     }
+  }
+
+  if (isReplicate) {
+    const inputImages: string[] = [];
+    if (options.baseImage) inputImages.push(options.baseImage);
+    if (options.referenceImages?.length) inputImages.push(...options.referenceImages);
+
+    const result = await generateWithReplicate(finalPrompt, modelName as 'openai/gpt-image-2', {
+      aspectRatio: options.aspectRatio,
+      count,
+      inputImages,
+    });
+    return { images: result.images, thoughts: [] };
   }
 
   if (isImagen && options.mode === 'batch') {

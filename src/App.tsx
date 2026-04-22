@@ -58,7 +58,7 @@ export default function App() {
   const [arIndex, setArIndex] = useState(0);
   const [resIndex, setResIndex] = useState(1);
   const [mode, setMode] = useState<'normal' | 'batch'>('normal');
-  const [model, setModel] = useState<'gemini-3.1-flash-image-preview' | 'gemini-3-pro-image-preview'>('gemini-3.1-flash-image-preview');
+  const [model, setModel] = useState<'gemini-3.1-flash-image-preview' | 'gemini-3-pro-image-preview' | 'imagen-4.0-generate-001' | 'openai/gpt-image-2'>('gemini-3.1-flash-image-preview');
 
   // System Options
   const [useSearch, setUseSearch] = useState(false);
@@ -108,7 +108,8 @@ export default function App() {
         setError("No images were generated. Please try a different prompt.");
       }
     } catch (err: any) {
-      setError("Failed to generate images. Please try again.");
+      const detail = err?.message || (typeof err === 'string' ? err : JSON.stringify(err));
+      setError(`Failed to generate images: ${detail}`);
       console.error(err);
     } finally {
       setPendingCount(prev => prev - 1);
@@ -363,7 +364,7 @@ export default function App() {
                           </div>
                           <p className="text-[10px] opacity-60 mt-1">High fidelity, complex reasoning</p>
                         </button>
-                        <button 
+                        <button
                           onClick={() => setModel('imagen-4.0-generate-001')}
                           className={`py-3 px-4 rounded-xl text-xs font-bold border-2 text-left transition-all ${model === 'imagen-4.0-generate-001' ? 'bg-[#FFF9C4] border-[#FBC02D] text-[#F57F17]' : 'bg-white border-[#EFEBE9] text-[#8D6E63]'}`}
                         >
@@ -372,6 +373,16 @@ export default function App() {
                             {model === 'imagen-4.0-generate-001' && <ImageIcon className="w-3 h-3" />}
                           </div>
                           <p className="text-[10px] opacity-60 mt-1">Photorealistic, high quality</p>
+                        </button>
+                        <button
+                          onClick={() => setModel('openai/gpt-image-2')}
+                          className={`py-3 px-4 rounded-xl text-xs font-bold border-2 text-left transition-all ${model === 'openai/gpt-image-2' ? 'bg-[#FFF9C4] border-[#FBC02D] text-[#F57F17]' : 'bg-white border-[#EFEBE9] text-[#8D6E63]'}`}
+                        >
+                          <div className="flex justify-between items-center">
+                            <span>GPT Image 2 (Replicate)</span>
+                            {model === 'openai/gpt-image-2' && <Sparkles className="w-3 h-3" />}
+                          </div>
+                          <p className="text-[10px] opacity-60 mt-1">OpenAI via Replicate · text &amp; edits · AR 1:1, 3:2, 2:3</p>
                         </button>
                       </div>
                     </div>
