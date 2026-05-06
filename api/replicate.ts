@@ -1,22 +1,22 @@
 /**
  * Vercel serverless function — proxies requests to the Replicate API.
  * Keeps REPLICATE_API_TOKEN server-side and avoids browser CORS issues.
+ *
+ * Generic by design: forwards any whitelisted model slug + arbitrary `input`
+ * payload to Replicate's `/v1/models/{slug}/predictions` endpoint, polls until
+ * completion, and returns output images as base64 data URLs.
  */
 
-type ReplicateInput = {
-  prompt: string;
-  aspect_ratio?: string;
-  quality?: 'low' | 'medium' | 'high' | 'auto';
-  number_of_images?: number;
-  output_format?: 'webp' | 'png' | 'jpeg';
-  background?: 'auto' | 'opaque';
-  moderation?: 'auto' | 'low';
-  input_images?: string[];
-};
+const ALLOWED_MODELS = new Set([
+  'google/nano-banana-2',
+  'google/nano-banana-pro',
+  'google/imagen-4',
+  'openai/gpt-image-2',
+]);
 
 type RequestBody = {
   model?: string;
-  input: ReplicateInput;
+  input: Record<string, unknown>;
 };
 
 type VercelRequest = {
@@ -30,8 +30,6 @@ type VercelResponse = {
   setHeader: (name: string, value: string) => void;
   end: () => void;
 };
-
-const DEFAULT_MODEL = 'openai/gpt-image-2';
 
 export default async function handler(
   req: VercelRequest,
@@ -56,12 +54,24 @@ export default async function handler(
     return;
   }
 
-  if (!parsed?.input?.prompt) {
-    res.status(400).json({ error: 'Missing input.prompt' });
+  const modelPath = parsed?.model;
+  if (!modelPath || !ALLOWED_MODELS.has(modelPath)) {
+    res.status(400).json({
+      error: `Unsupported model. Allowed: ${[...ALLOWED_MODELS].join(', ')}`,
+    });
     return;
   }
 
-  const modelPath = parsed.model || DEFAULT_MODEL;
+  if (!parsed?.input || typeof parsed.input !== 'object') {
+    res.status(400).json({ error: 'Missing input object' });
+    return;
+  }
+
+  const promptValue = (parsed.input as { prompt?: unknown }).prompt;
+  if (typeof promptValue !== 'string' || !promptValue.trim()) {
+    res.status(400).json({ error: 'Missing input.prompt' });
+    return;
+  }
 
   try {
     const createResp = await fetch(
@@ -107,21 +117,33 @@ export default async function handler(
       return;
     }
 
-    const outputs = Array.isArray(finalPrediction.output)
-      ? finalPrediction.output
-      : finalPrediction.output
-        ? [finalPrediction.output]
-        : [];
-
-    const images = await Promise.all(
-      outputs.map((url: string) => fetchAsDataUrl(url))
-    );
+    const outputs = normalizeOutputs(finalPrediction.output);
+    const images = await Promise.all(outputs.map((url) => fetchAsDataUrl(url)));
 
     res.status(200).json({ images });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });
   }
+}
+
+function normalizeOutputs(output: unknown): string[] {
+  if (!output) return [];
+  if (typeof output === 'string') return [output];
+  if (Array.isArray(output)) {
+    return output.flatMap((item) =>
+      typeof item === 'string' ? [item] : []
+    );
+  }
+  if (typeof output === 'object') {
+    const maybeImages = (output as { images?: unknown }).images;
+    if (Array.isArray(maybeImages)) {
+      return maybeImages.flatMap((item) =>
+        typeof item === 'string' ? [item] : []
+      );
+    }
+  }
+  return [];
 }
 
 async function pollPrediction(id: string, token: string) {

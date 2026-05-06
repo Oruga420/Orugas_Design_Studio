@@ -4,10 +4,10 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { generateImages, rewritePromptAsJson, suggestAdvancedField, ImageOptions } from './services/gemini';
-import { 
-  Loader2, Download, Sparkles, Image as ImageIcon, 
-  Settings2, Sliders, Layout, Zap, Code,
+import { generateImages, ImageOptions } from './services/replicate';
+import {
+  Loader2, Download, Sparkles, Image as ImageIcon,
+  Settings2, Sliders, Layout, Zap,
   Camera, Maximize, Sun, Palette, Brush, ChevronRight, ChevronLeft,
   Upload, Link as LinkIcon, Clipboard, X, Plus, ZoomIn, ZoomOut, RotateCcw
 } from 'lucide-react';
@@ -37,12 +37,9 @@ const RESOLUTIONS = ["512", "1K", "2K", "4K"];
 export default function App() {
   const [prompt, setPrompt] = useState('');
   const [images, setImages] = useState<string[]>([]);
-  const [thoughts, setThoughts] = useState<string[]>([]);
   const [referenceImages, setReferenceImages] = useState<string[]>([]);
   const [baseImage, setBaseImage] = useState<string | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
-  const [rewriting, setRewriting] = useState(false);
-  const [suggesting, setSuggesting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [previewIdx, setPreviewIdx] = useState<number | null>(null);
   const [zoomScale, setZoomScale] = useState(1);
@@ -51,20 +48,15 @@ export default function App() {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   
   // Tabs
-  const [activeTab, setActiveTab] = useState<'basic' | 'advanced' | 'system'>('basic');
+  const [activeTab, setActiveTab] = useState<'basic' | 'advanced'>('basic');
 
   // Basic Options
   const [imageCount, setImageCount] = useState(1);
   const [arIndex, setArIndex] = useState(0);
   const [resIndex, setResIndex] = useState(1);
   const [mode, setMode] = useState<'normal' | 'batch'>('normal');
-  const [model, setModel] = useState<'gemini-3.1-flash-image-preview' | 'gemini-3-pro-image-preview' | 'imagen-4.0-generate-001' | 'openai/gpt-image-2'>('gemini-3.1-flash-image-preview');
+  const [model, setModel] = useState<'google/nano-banana-2' | 'google/nano-banana-pro' | 'google/imagen-4' | 'openai/gpt-image-2'>('google/nano-banana-2');
 
-  // System Options
-  const [useSearch, setUseSearch] = useState(false);
-  const [useImageSearch, setUseImageSearch] = useState(false);
-  const [thinkingLevel, setThinkingLevel] = useState<'Minimal' | 'High'>('Minimal');
-  const [showThoughts, setShowThoughts] = useState(false);
   const [advanced, setAdvanced] = useState({
     camera: '',
     angle: '',
@@ -90,19 +82,12 @@ export default function App() {
         model,
         referenceImages,
         baseImage: baseImage || undefined,
-        useSearch,
-        useImageSearch,
-        thinkingLevel,
-        includeThoughts: showThoughts,
         advanced: activeTab === 'advanced' ? advanced : undefined
       };
-      
+
       const result = await generateImages(prompt, options);
       if (result.images.length > 0) {
         setImages(prev => [...result.images, ...prev]);
-        if (result.thoughts) {
-          setThoughts(prev => [...result.thoughts!, ...prev]);
-        }
         setBaseImage(null); // Clear base image after edit
       } else {
         setError("No images were generated. Please try a different prompt.");
@@ -113,34 +98,6 @@ export default function App() {
       console.error(err);
     } finally {
       setPendingCount(prev => prev - 1);
-    }
-  };
-
-  const handleRewriteJson = async () => {
-    if (!prompt.trim()) return;
-    setRewriting(true);
-    try {
-      const jsonPrompt = await rewritePromptAsJson(prompt);
-      setPrompt(jsonPrompt);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setRewriting(false);
-    }
-  };
-
-  const handleSuggest = async (field: string) => {
-    if (!prompt.trim()) return;
-    setSuggesting(field);
-    try {
-      const suggestion = await suggestAdvancedField(field, prompt, advanced);
-      if (suggestion) {
-        setAdvanced(prev => ({ ...prev, [field]: suggestion }));
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setSuggesting(null);
     }
   };
 
@@ -304,7 +261,7 @@ export default function App() {
             </TextScramble>
           </h1>
           <p className="text-[#795548] text-lg max-w-md mx-auto">
-            Professional image generation with Gemini 3.1
+            Professional image generation · all models via Replicate
           </p>
         </motion.div>
 
@@ -314,26 +271,19 @@ export default function App() {
           <div className="lg:col-span-4 space-y-6">
             <div className="bg-white rounded-[2rem] shadow-md border border-[#D7CCC8] overflow-hidden">
               <div className="flex border-b border-[#EFEBE9]">
-                <button 
+                <button
                   onClick={() => setActiveTab('basic')}
                   className={`flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === 'basic' ? 'bg-[#4CAF50] text-white' : 'text-[#8D6E63] hover:bg-[#FDF5E6]'}`}
                 >
                   <Sliders className="w-4 h-4" />
                   Basic
                 </button>
-                <button 
+                <button
                   onClick={() => setActiveTab('advanced')}
                   className={`flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === 'advanced' ? 'bg-[#4CAF50] text-white' : 'text-[#8D6E63] hover:bg-[#FDF5E6]'}`}
                 >
                   <Settings2 className="w-4 h-4" />
                   Advanced
-                </button>
-                <button 
-                  onClick={() => setActiveTab('system')}
-                  className={`flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === 'system' ? 'bg-[#4CAF50] text-white' : 'text-[#8D6E63] hover:bg-[#FDF5E6]'}`}
-                >
-                  <Zap className="w-4 h-4" />
-                  System
                 </button>
               </div>
 
@@ -344,45 +294,45 @@ export default function App() {
                     <div className="space-y-4">
                       <label className="text-xs font-black text-[#8D6E63] uppercase tracking-widest">Model</label>
                       <div className="grid grid-cols-1 gap-2">
-                        <button 
-                          onClick={() => setModel('gemini-3.1-flash-image-preview')}
-                          className={`py-3 px-4 rounded-xl text-xs font-bold border-2 text-left transition-all ${model === 'gemini-3.1-flash-image-preview' ? 'bg-[#FFF9C4] border-[#FBC02D] text-[#F57F17]' : 'bg-white border-[#EFEBE9] text-[#8D6E63]'}`}
+                        <button
+                          onClick={() => setModel('google/nano-banana-2')}
+                          className={`py-3 px-4 rounded-xl text-xs font-bold border-2 text-left transition-all ${model === 'google/nano-banana-2' ? 'bg-[#FFF9C4] border-[#FBC02D] text-[#F57F17]' : 'bg-white border-[#EFEBE9] text-[#8D6E63]'}`}
                         >
                           <div className="flex justify-between items-center">
                             <span>Nano Banana 2 (Flash)</span>
-                            {model === 'gemini-3.1-flash-image-preview' && <Zap className="w-3 h-3" />}
+                            {model === 'google/nano-banana-2' && <Zap className="w-3 h-3" />}
                           </div>
-                          <p className="text-[10px] opacity-60 mt-1">Fast, efficient, high-volume</p>
+                          <p className="text-[10px] opacity-60 mt-1">Gemini 3.1 Flash Image · fast, high-volume</p>
                         </button>
-                        <button 
-                          onClick={() => setModel('gemini-3-pro-image-preview')}
-                          className={`py-3 px-4 rounded-xl text-xs font-bold border-2 text-left transition-all ${model === 'gemini-3-pro-image-preview' ? 'bg-[#FFF9C4] border-[#FBC02D] text-[#F57F17]' : 'bg-white border-[#EFEBE9] text-[#8D6E63]'}`}
+                        <button
+                          onClick={() => setModel('google/nano-banana-pro')}
+                          className={`py-3 px-4 rounded-xl text-xs font-bold border-2 text-left transition-all ${model === 'google/nano-banana-pro' ? 'bg-[#FFF9C4] border-[#FBC02D] text-[#F57F17]' : 'bg-white border-[#EFEBE9] text-[#8D6E63]'}`}
                         >
                           <div className="flex justify-between items-center">
                             <span>Nano Banana Pro</span>
-                            {model === 'gemini-3-pro-image-preview' && <Sparkles className="w-3 h-3" />}
+                            {model === 'google/nano-banana-pro' && <Sparkles className="w-3 h-3" />}
                           </div>
-                          <p className="text-[10px] opacity-60 mt-1">High fidelity, complex reasoning</p>
+                          <p className="text-[10px] opacity-60 mt-1">Gemini 3 Pro Image · high fidelity, up to 4K</p>
                         </button>
                         <button
-                          onClick={() => setModel('imagen-4.0-generate-001')}
-                          className={`py-3 px-4 rounded-xl text-xs font-bold border-2 text-left transition-all ${model === 'imagen-4.0-generate-001' ? 'bg-[#FFF9C4] border-[#FBC02D] text-[#F57F17]' : 'bg-white border-[#EFEBE9] text-[#8D6E63]'}`}
+                          onClick={() => setModel('google/imagen-4')}
+                          className={`py-3 px-4 rounded-xl text-xs font-bold border-2 text-left transition-all ${model === 'google/imagen-4' ? 'bg-[#FFF9C4] border-[#FBC02D] text-[#F57F17]' : 'bg-white border-[#EFEBE9] text-[#8D6E63]'}`}
                         >
                           <div className="flex justify-between items-center">
                             <span>Imagen 4</span>
-                            {model === 'imagen-4.0-generate-001' && <ImageIcon className="w-3 h-3" />}
+                            {model === 'google/imagen-4' && <ImageIcon className="w-3 h-3" />}
                           </div>
-                          <p className="text-[10px] opacity-60 mt-1">Photorealistic, high quality</p>
+                          <p className="text-[10px] opacity-60 mt-1">Photorealistic · AR 1:1, 3:4, 4:3, 9:16, 16:9</p>
                         </button>
                         <button
                           onClick={() => setModel('openai/gpt-image-2')}
                           className={`py-3 px-4 rounded-xl text-xs font-bold border-2 text-left transition-all ${model === 'openai/gpt-image-2' ? 'bg-[#FFF9C4] border-[#FBC02D] text-[#F57F17]' : 'bg-white border-[#EFEBE9] text-[#8D6E63]'}`}
                         >
                           <div className="flex justify-between items-center">
-                            <span>GPT Image 2 (Replicate)</span>
+                            <span>GPT Image 2</span>
                             {model === 'openai/gpt-image-2' && <Sparkles className="w-3 h-3" />}
                           </div>
-                          <p className="text-[10px] opacity-60 mt-1">OpenAI via Replicate · text &amp; edits · AR 1:1, 3:2, 2:3</p>
+                          <p className="text-[10px] opacity-60 mt-1">OpenAI · text &amp; edits · AR 1:1, 3:2, 2:3</p>
                         </button>
                       </div>
                     </div>
@@ -461,192 +411,71 @@ export default function App() {
                       </div>
                     </div>
                   </>
-                ) : activeTab === 'advanced' ? (
+                ) : (
                   <div className="space-y-6">
                     <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <Label htmlFor="camera" className="text-[10px] font-black text-[#8D6E63] uppercase flex items-center gap-1">
-                          <Camera className="w-3 h-3" /> Camera Type
-                        </Label>
-                        <button 
-                          onClick={() => handleSuggest('camera')}
-                          disabled={suggesting === 'camera' || !prompt.trim()}
-                          className="text-[10px] font-bold text-[#4CAF50] hover:underline disabled:opacity-50 flex items-center gap-1"
-                        >
-                          {suggesting === 'camera' ? <Loader2 className="w-2 h-2 animate-spin" /> : <Sparkles className="w-2 h-2" />}
-                          AI
-                        </button>
-                      </div>
-                      <Input 
+                      <Label htmlFor="camera" className="text-[10px] font-black text-[#8D6E63] uppercase flex items-center gap-1">
+                        <Camera className="w-3 h-3" /> Camera Type
+                      </Label>
+                      <Input
                         id="camera"
                         type="text" placeholder="e.g. DSLR, Leica, GoPro"
                         value={advanced.camera}
                         onChange={(e) => setAdvanced({...advanced, camera: e.target.value})}
                         className="w-full bg-[#FDF5E6] border-[#D7CCC8] rounded-xl p-3 text-sm outline-none focus-visible:ring-[#4CAF50] focus-visible:ring-offset-0"
                       />
-                      {advanced.camera && (
-                        <p className="text-[10px] text-teal-600 font-bold">Looks good!</p>
-                      )}
                     </div>
                     <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <Label htmlFor="angle" className="text-[10px] font-black text-[#8D6E63] uppercase flex items-center gap-1">
-                          <Maximize className="w-3 h-3" /> Angle
-                        </Label>
-                        <button 
-                          onClick={() => handleSuggest('angle')}
-                          disabled={suggesting === 'angle' || !prompt.trim()}
-                          className="text-[10px] font-bold text-[#4CAF50] hover:underline disabled:opacity-50 flex items-center gap-1"
-                        >
-                          {suggesting === 'angle' ? <Loader2 className="w-2 h-2 animate-spin" /> : <Sparkles className="w-2 h-2" />}
-                          AI
-                        </button>
-                      </div>
-                      <Input 
+                      <Label htmlFor="angle" className="text-[10px] font-black text-[#8D6E63] uppercase flex items-center gap-1">
+                        <Maximize className="w-3 h-3" /> Angle
+                      </Label>
+                      <Input
                         id="angle"
                         type="text" placeholder="e.g. Low angle, Bird's eye"
                         value={advanced.angle}
                         onChange={(e) => setAdvanced({...advanced, angle: e.target.value})}
                         className="w-full bg-[#FDF5E6] border-[#D7CCC8] rounded-xl p-3 text-sm outline-none focus-visible:ring-[#4CAF50] focus-visible:ring-offset-0"
                       />
-                      {advanced.angle && (
-                        <p className="text-[10px] text-teal-600 font-bold">Looks good!</p>
-                      )}
                     </div>
                     <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <Label htmlFor="lighting" className="text-[10px] font-black text-[#8D6E63] uppercase flex items-center gap-1">
-                          <Sun className="w-3 h-3" /> Lighting
-                        </Label>
-                        <button 
-                          onClick={() => handleSuggest('lighting')}
-                          disabled={suggesting === 'lighting' || !prompt.trim()}
-                          className="text-[10px] font-bold text-[#4CAF50] hover:underline disabled:opacity-50 flex items-center gap-1"
-                        >
-                          {suggesting === 'lighting' ? <Loader2 className="w-2 h-2 animate-spin" /> : <Sparkles className="w-2 h-2" />}
-                          AI
-                        </button>
-                      </div>
-                      <Input 
+                      <Label htmlFor="lighting" className="text-[10px] font-black text-[#8D6E63] uppercase flex items-center gap-1">
+                        <Sun className="w-3 h-3" /> Lighting
+                      </Label>
+                      <Input
                         id="lighting"
                         type="text" placeholder="e.g. Cinematic, Golden hour"
                         value={advanced.lighting}
                         onChange={(e) => setAdvanced({...advanced, lighting: e.target.value})}
                         className="w-full bg-[#FDF5E6] border-[#D7CCC8] rounded-xl p-3 text-sm outline-none focus-visible:ring-[#4CAF50] focus-visible:ring-offset-0"
                       />
-                      {advanced.lighting && (
-                        <p className="text-[10px] text-teal-600 font-bold">Looks good!</p>
-                      )}
                     </div>
                     <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <Label htmlFor="filter" className="text-[10px] font-black text-[#8D6E63] uppercase flex items-center gap-1">
-                          <Palette className="w-3 h-3" /> Filter
-                        </Label>
-                        <button 
-                          onClick={() => handleSuggest('filter')}
-                          disabled={suggesting === 'filter' || !prompt.trim()}
-                          className="text-[10px] font-bold text-[#4CAF50] hover:underline disabled:opacity-50 flex items-center gap-1"
-                        >
-                          {suggesting === 'filter' ? <Loader2 className="w-2 h-2 animate-spin" /> : <Sparkles className="w-2 h-2" />}
-                          AI
-                        </button>
-                      </div>
-                      <Input 
+                      <Label htmlFor="filter" className="text-[10px] font-black text-[#8D6E63] uppercase flex items-center gap-1">
+                        <Palette className="w-3 h-3" /> Filter
+                      </Label>
+                      <Input
                         id="filter"
                         type="text" placeholder="e.g. Vintage, Cyberpunk"
                         value={advanced.filter}
                         onChange={(e) => setAdvanced({...advanced, filter: e.target.value})}
                         className="w-full bg-[#FDF5E6] border-[#D7CCC8] rounded-xl p-3 text-sm outline-none focus-visible:ring-[#4CAF50] focus-visible:ring-offset-0"
                       />
-                      {advanced.filter && (
-                        <p className="text-[10px] text-teal-600 font-bold">Looks good!</p>
-                      )}
                     </div>
                     <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <Label htmlFor="style" className="text-[10px] font-black text-[#8D6E63] uppercase flex items-center gap-1">
-                          <Brush className="w-3 h-3" /> Illustration Style
-                        </Label>
-                        <button 
-                          onClick={() => handleSuggest('style')}
-                          disabled={suggesting === 'style' || !prompt.trim()}
-                          className="text-[10px] font-bold text-[#4CAF50] hover:underline disabled:opacity-50 flex items-center gap-1"
-                        >
-                          {suggesting === 'style' ? <Loader2 className="w-2 h-2 animate-spin" /> : <Sparkles className="w-2 h-2" />}
-                          AI
-                        </button>
-                      </div>
-                      <Input 
+                      <Label htmlFor="style" className="text-[10px] font-black text-[#8D6E63] uppercase flex items-center gap-1">
+                        <Brush className="w-3 h-3" /> Illustration Style
+                      </Label>
+                      <Input
                         id="style"
                         type="text" placeholder="e.g. Oil painting, 3D Render"
                         value={advanced.style}
                         onChange={(e) => setAdvanced({...advanced, style: e.target.value})}
                         className="w-full bg-[#FDF5E6] border-[#D7CCC8] rounded-xl p-3 text-sm outline-none focus-visible:ring-[#4CAF50] focus-visible:ring-offset-0"
                       />
-                      {advanced.style && (
-                        <p className="text-[10px] text-teal-600 font-bold">Looks good!</p>
-                      )}
                     </div>
-                  </div>
-                ) : (
-                  <div className="space-y-6">
-                    {/* Search Grounding */}
-                    <div className="space-y-4">
-                      <label className="text-xs font-black text-[#8D6E63] uppercase tracking-widest flex items-center gap-2">
-                        <LinkIcon className="w-3 h-3" /> Search Grounding
-                      </label>
-                      <div className="space-y-2">
-                        <button 
-                          onClick={() => setUseSearch(!useSearch)}
-                          className={`w-full py-3 px-4 rounded-xl text-xs font-bold border-2 text-left transition-all ${useSearch ? 'bg-[#E8F5E9] border-[#4CAF50] text-[#2E7D32]' : 'bg-white border-[#EFEBE9] text-[#8D6E63]'}`}
-                        >
-                          Web Search Grounding
-                        </button>
-                        {useSearch && model === 'gemini-3.1-flash-image-preview' && (
-                          <button 
-                            onClick={() => setUseImageSearch(!useImageSearch)}
-                            className={`w-full py-3 px-4 rounded-xl text-xs font-bold border-2 text-left transition-all ${useImageSearch ? 'bg-[#E8F5E9] border-[#4CAF50] text-[#2E7D32]' : 'bg-white border-[#EFEBE9] text-[#8D6E63]'}`}
-                          >
-                            Image Search Grounding
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Thinking Config */}
-                    <div className="space-y-4">
-                      <label className="text-xs font-black text-[#8D6E63] uppercase tracking-widest flex items-center gap-2">
-                        <Sparkles className="w-3 h-3" /> Thinking Config
-                      </label>
-                      <div className="space-y-2">
-                        <div className="grid grid-cols-2 gap-2">
-                          <button 
-                            onClick={() => setThinkingLevel('Minimal')}
-                            className={`py-2 rounded-xl text-[10px] font-bold border-2 transition-all ${thinkingLevel === 'Minimal' ? 'bg-[#FFF9C4] border-[#FBC02D] text-[#F57F17]' : 'bg-white border-[#EFEBE9] text-[#8D6E63]'}`}
-                          >
-                            Minimal
-                          </button>
-                          <button 
-                            onClick={() => setThinkingLevel('High')}
-                            className={`py-2 rounded-xl text-[10px] font-bold border-2 transition-all ${thinkingLevel === 'High' ? 'bg-[#FFF9C4] border-[#FBC02D] text-[#F57F17]' : 'bg-white border-[#EFEBE9] text-[#8D6E63]'}`}
-                          >
-                            High
-                          </button>
-                        </div>
-                        <button 
-                          onClick={() => setShowThoughts(!showThoughts)}
-                          className={`w-full py-3 px-4 rounded-xl text-xs font-bold border-2 text-left transition-all ${showThoughts ? 'bg-[#E8F5E9] border-[#4CAF50] text-[#2E7D32]' : 'bg-white border-[#EFEBE9] text-[#8D6E63]'}`}
-                        >
-                          Include Thoughts in Result
-                        </button>
-                      </div>
-                    </div>
-
-                    <button 
+                    <button
                       onClick={() => {
                         setImages([]);
-                        setThoughts([]);
                         setError(null);
                       }}
                       className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-red-50 text-red-600 border-2 border-red-100 hover:bg-red-100 transition-all flex items-center justify-center gap-2"
@@ -762,15 +591,7 @@ export default function App() {
                     </p>
                   )
                 )}
-                <div className="flex justify-between items-center mt-4">
-                  <button
-                    onClick={handleRewriteJson}
-                    disabled={rewriting || !prompt.trim()}
-                    className="flex items-center gap-2 text-[#4CAF50] hover:bg-[#E8F5E9] px-4 py-2 rounded-xl text-sm font-bold transition-colors disabled:opacity-50"
-                  >
-                    {rewriting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Code className="w-4 h-4" />}
-                    Rewrite as JSON
-                  </button>
+                <div className="flex justify-end items-center mt-4">
                   <button
                     onClick={handleGenerate}
                     disabled={!prompt.trim()}
@@ -803,10 +624,10 @@ export default function App() {
             )}
 
             {/* Results Grid */}
-            <div className={`grid gap-4 ${images.length + pendingCount + thoughts.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+            <div className={`grid gap-4 ${images.length + pendingCount > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
               <AnimatePresence mode="popLayout">
                 {Array.from({ length: pendingCount }).map((_, i) => (
-                  <motion.div 
+                  <motion.div
                     key={`pending-${i}`}
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
@@ -815,18 +636,6 @@ export default function App() {
                   >
                     <div className="w-12 h-12 border-4 border-[#EFEBE9] border-t-[#4CAF50] rounded-full animate-spin mb-4" />
                     <p className="text-[#8D6E63] text-xs font-bold animate-pulse">Brewing...</p>
-                  </motion.div>
-                ))}
-
-                {showThoughts && thoughts.map((img, idx) => (
-                  <motion.div
-                    key={`thought-${idx}`}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="relative group bg-neutral-100 rounded-[2rem] overflow-hidden shadow-sm border border-[#D7CCC8] opacity-60"
-                  >
-                    <img src={img} alt="Thought" className="w-full h-auto aspect-square object-cover grayscale" />
-                    <div className="absolute top-2 left-2 bg-black/50 text-white text-[8px] px-2 py-1 rounded-full uppercase font-bold">Thought</div>
                   </motion.div>
                 ))}
 
