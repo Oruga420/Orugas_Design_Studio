@@ -3,13 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
-import { generateImages, ImageOptions } from './services/replicate';
+import React, { useState, useEffect, useMemo } from 'react';
+import { generateImages, ImageOptions, ReplicateModel } from './services/replicate';
+import { MODELS, MODEL_LIST } from './services/models';
 import {
   Loader2, Download, Sparkles, Image as ImageIcon,
   Settings2, Sliders, Layout, Zap,
   Camera, Maximize, Sun, Palette, Brush, ChevronRight, ChevronLeft,
-  Upload, Link as LinkIcon, Clipboard, X, Plus, ZoomIn, ZoomOut, RotateCcw
+  Upload, Link as LinkIcon, Clipboard, X, Plus, ZoomIn, ZoomOut, RotateCcw, Cpu
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -31,12 +32,19 @@ import {
   MorphingDialogContainer,
 } from './components/ui/morphing-dialog';
 
-const ASPECT_RATIOS = ["1:1", "1:4", "1:8", "2:3", "3:2", "3:4", "4:1", "4:3", "4:5", "5:4", "8:1", "9:16", "16:9", "21:9"];
-const RESOLUTIONS = ["512", "1K", "2K", "4K"];
+interface GeneratedImage {
+  src: string;
+  prompt: string;
+  model: ReplicateModel;
+  modelLabel: string;
+  aspectRatio: string;
+  resolution: string;
+  createdAt: number;
+}
 
 export default function App() {
   const [prompt, setPrompt] = useState('');
-  const [images, setImages] = useState<string[]>([]);
+  const [images, setImages] = useState<GeneratedImage[]>([]);
   const [referenceImages, setReferenceImages] = useState<string[]>([]);
   const [baseImage, setBaseImage] = useState<string | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
@@ -46,16 +54,24 @@ export default function App() {
   const [zoomOffset, setZoomOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  
+
   // Tabs
   const [activeTab, setActiveTab] = useState<'basic' | 'advanced'>('basic');
 
   // Basic Options
   const [imageCount, setImageCount] = useState(1);
   const [arIndex, setArIndex] = useState(0);
-  const [resIndex, setResIndex] = useState(1);
+  const [resIndex, setResIndex] = useState(0);
   const [mode, setMode] = useState<'normal' | 'batch'>('normal');
-  const [model, setModel] = useState<'google/nano-banana-2' | 'google/nano-banana-pro' | 'google/imagen-4' | 'openai/gpt-image-2'>('google/nano-banana-2');
+  const [model, setModel] = useState<ReplicateModel>('google/nano-banana-2');
+
+  const manifest = useMemo(() => MODELS[model], [model]);
+  const aspectRatios = manifest.aspectRatios;
+  const resolutions = manifest.resolutions;
+  const safeArIndex = Math.min(arIndex, aspectRatios.length - 1);
+  const safeResIndex = Math.min(resIndex, resolutions.length - 1);
+  const currentAspectRatio = aspectRatios[safeArIndex];
+  const currentResolution = resolutions[safeResIndex];
 
   const [advanced, setAdvanced] = useState({
     camera: '',
@@ -73,22 +89,38 @@ export default function App() {
     setPendingCount(prev => prev + 1);
     setError(null);
 
+    const submittedPrompt = prompt;
+    const submittedModel = model;
+    const submittedAR = currentAspectRatio;
+    const submittedRes = currentResolution;
+    const submittedLabel = manifest.label;
+
     try {
       const options: ImageOptions = {
-        aspectRatio: ASPECT_RATIOS[arIndex],
-        imageSize: RESOLUTIONS[resIndex],
+        aspectRatio: submittedAR,
+        imageSize: submittedRes,
         count: imageCount,
         mode,
-        model,
+        model: submittedModel,
         referenceImages,
         baseImage: baseImage || undefined,
         advanced: activeTab === 'advanced' ? advanced : undefined
       };
 
-      const result = await generateImages(prompt, options);
+      const result = await generateImages(submittedPrompt, options);
       if (result.images.length > 0) {
-        setImages(prev => [...result.images, ...prev]);
-        setBaseImage(null); // Clear base image after edit
+        const now = Date.now();
+        const newImages: GeneratedImage[] = result.images.map(src => ({
+          src,
+          prompt: submittedPrompt,
+          model: submittedModel,
+          modelLabel: submittedLabel,
+          aspectRatio: submittedAR,
+          resolution: submittedRes,
+          createdAt: now,
+        }));
+        setImages(prev => [...newImages, ...prev]);
+        setBaseImage(null);
       } else {
         setError("No images were generated. Please try a different prompt.");
       }
@@ -102,7 +134,8 @@ export default function App() {
   };
 
   const addReferenceImage = (base64: string) => {
-    if (referenceImages.length >= 14) return;
+    const cap = manifest.maxRefs || 14;
+    if (referenceImages.length >= cap) return;
     setReferenceImages(prev => [...prev, base64]);
   };
 
@@ -169,13 +202,25 @@ export default function App() {
     return () => window.removeEventListener('paste', handlePaste);
   }, [referenceImages]);
 
-  const handleDownload = (img: string, index: number) => {
+  const handleDownload = (img: GeneratedImage, index: number) => {
     const link = document.createElement('a');
-    link.href = img;
-    link.download = `nano-banana-2-${Date.now()}-${index}.png`;
+    link.href = img.src;
+    const safeSlug = img.model.replace(/[^a-z0-9]+/gi, '-');
+    link.download = `${safeSlug}-${img.createdAt}-${index}.png`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleSelectModel = (next: ReplicateModel) => {
+    setModel(next);
+    const m = MODELS[next];
+    if (arIndex >= m.aspectRatios.length) setArIndex(0);
+    if (resIndex >= m.resolutions.length) setResIndex(0);
+    if (imageCount > m.maxBatch) setImageCount(m.maxBatch);
+    if (m.maxBatch < 2 && mode === 'batch') setMode('normal');
+    if (!m.supportsRefs) setReferenceImages([]);
+    if (!m.supportsBaseImage) setBaseImage(null);
   };
 
   const handleNext = () => {
@@ -290,118 +335,105 @@ export default function App() {
               <div className="p-6 space-y-8">
                 {activeTab === 'basic' ? (
                   <>
-                    {/* Model Selection */}
-                    <div className="space-y-4">
-                      <label className="text-xs font-black text-[#8D6E63] uppercase tracking-widest">Model</label>
-                      <div className="grid grid-cols-1 gap-2">
-                        <button
-                          onClick={() => setModel('google/nano-banana-2')}
-                          className={`py-3 px-4 rounded-xl text-xs font-bold border-2 text-left transition-all ${model === 'google/nano-banana-2' ? 'bg-[#FFF9C4] border-[#FBC02D] text-[#F57F17]' : 'bg-white border-[#EFEBE9] text-[#8D6E63]'}`}
+                    {/* Model Dropdown */}
+                    <div className="space-y-3">
+                      <label className="text-xs font-black text-[#8D6E63] uppercase tracking-widest flex items-center gap-2">
+                        <Cpu className="w-3 h-3" /> Model
+                      </label>
+                      <div className="relative">
+                        <select
+                          value={model}
+                          onChange={(e) => handleSelectModel(e.target.value as ReplicateModel)}
+                          className="w-full appearance-none bg-white border-2 border-[#EFEBE9] rounded-xl py-3 pl-4 pr-10 text-sm font-bold text-[#5D4037] focus:border-[#FBC02D] focus:bg-[#FFF9C4] focus:outline-none transition-all cursor-pointer"
                         >
-                          <div className="flex justify-between items-center">
-                            <span>Nano Banana 2 (Flash)</span>
-                            {model === 'google/nano-banana-2' && <Zap className="w-3 h-3" />}
-                          </div>
-                          <p className="text-[10px] opacity-60 mt-1">Gemini 3.1 Flash Image · fast, high-volume</p>
-                        </button>
-                        <button
-                          onClick={() => setModel('google/nano-banana-pro')}
-                          className={`py-3 px-4 rounded-xl text-xs font-bold border-2 text-left transition-all ${model === 'google/nano-banana-pro' ? 'bg-[#FFF9C4] border-[#FBC02D] text-[#F57F17]' : 'bg-white border-[#EFEBE9] text-[#8D6E63]'}`}
-                        >
-                          <div className="flex justify-between items-center">
-                            <span>Nano Banana Pro</span>
-                            {model === 'google/nano-banana-pro' && <Sparkles className="w-3 h-3" />}
-                          </div>
-                          <p className="text-[10px] opacity-60 mt-1">Gemini 3 Pro Image · high fidelity, up to 4K</p>
-                        </button>
-                        <button
-                          onClick={() => setModel('google/imagen-4')}
-                          className={`py-3 px-4 rounded-xl text-xs font-bold border-2 text-left transition-all ${model === 'google/imagen-4' ? 'bg-[#FFF9C4] border-[#FBC02D] text-[#F57F17]' : 'bg-white border-[#EFEBE9] text-[#8D6E63]'}`}
-                        >
-                          <div className="flex justify-between items-center">
-                            <span>Imagen 4</span>
-                            {model === 'google/imagen-4' && <ImageIcon className="w-3 h-3" />}
-                          </div>
-                          <p className="text-[10px] opacity-60 mt-1">Photorealistic · AR 1:1, 3:4, 4:3, 9:16, 16:9</p>
-                        </button>
-                        <button
-                          onClick={() => setModel('openai/gpt-image-2')}
-                          className={`py-3 px-4 rounded-xl text-xs font-bold border-2 text-left transition-all ${model === 'openai/gpt-image-2' ? 'bg-[#FFF9C4] border-[#FBC02D] text-[#F57F17]' : 'bg-white border-[#EFEBE9] text-[#8D6E63]'}`}
-                        >
-                          <div className="flex justify-between items-center">
-                            <span>GPT Image 2</span>
-                            {model === 'openai/gpt-image-2' && <Sparkles className="w-3 h-3" />}
-                          </div>
-                          <p className="text-[10px] opacity-60 mt-1">OpenAI · text &amp; edits · AR 1:1, 3:2, 2:3</p>
-                        </button>
+                          {MODEL_LIST.map(m => (
+                            <option key={m.slug} value={m.slug}>{m.label}</option>
+                          ))}
+                        </select>
+                        <ChevronRight className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 rotate-90 text-[#8D6E63] pointer-events-none" />
                       </div>
+                      <p className="text-[10px] text-[#8D6E63] leading-relaxed">{manifest.description}</p>
+                      <p className="text-[10px] text-[#8D6E63]/70 font-mono">{manifest.slug}</p>
                     </div>
-                    {/* Image Count Slider - Always visible */}
-                    <motion.div 
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      className="space-y-4 overflow-hidden"
-                    >
-                      <div className="flex justify-between items-center">
-                        <label className="text-xs font-black text-[#8D6E63] uppercase tracking-widest flex items-center gap-2">
-                          <Layout className="w-3 h-3" />
-                          Batch Size: {imageCount}
-                        </label>
-                      </div>
-                      <input 
-                        type="range" min="1" max="6" step="1"
-                        value={imageCount}
-                        onChange={(e) => setImageCount(parseInt(e.target.value))}
-                        className="w-full h-2 bg-[#EFEBE9] rounded-lg appearance-none cursor-pointer accent-[#4CAF50]"
-                      />
-                    </motion.div>
 
-                    {/* Aspect Ratio Slider */}
+                    {/* Batch Size — only when model supports >1 */}
+                    {manifest.maxBatch > 1 && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        className="space-y-4 overflow-hidden"
+                      >
+                        <div className="flex justify-between items-center">
+                          <label className="text-xs font-black text-[#8D6E63] uppercase tracking-widest flex items-center gap-2">
+                            <Layout className="w-3 h-3" />
+                            Batch Size: {imageCount} <span className="opacity-50">/ {manifest.maxBatch}</span>
+                          </label>
+                        </div>
+                        <input
+                          type="range" min="1" max={manifest.maxBatch} step="1"
+                          value={Math.min(imageCount, manifest.maxBatch)}
+                          onChange={(e) => setImageCount(parseInt(e.target.value))}
+                          className="w-full h-2 bg-[#EFEBE9] rounded-lg appearance-none cursor-pointer accent-[#4CAF50]"
+                        />
+                      </motion.div>
+                    )}
+
+                    {/* Aspect Ratio Slider — dynamic per model */}
                     <div className="space-y-4">
                       <div className="flex justify-between items-center">
                         <label className="text-xs font-black text-[#8D6E63] uppercase tracking-widest flex items-center gap-2">
                           <Maximize className="w-3 h-3" />
-                          AR: {ASPECT_RATIOS[arIndex]}
+                          AR: {currentAspectRatio}
                         </label>
+                        <span className="text-[10px] text-[#8D6E63]/70">{aspectRatios.length} options</span>
                       </div>
-                      <input 
-                        type="range" min="0" max={ASPECT_RATIOS.length - 1} step="1"
-                        value={arIndex}
-                        onChange={(e) => setArIndex(parseInt(e.target.value))}
-                        className="w-full h-2 bg-[#EFEBE9] rounded-lg appearance-none cursor-pointer accent-[#4CAF50]"
-                      />
+                      {aspectRatios.length > 1 ? (
+                        <input
+                          type="range" min="0" max={aspectRatios.length - 1} step="1"
+                          value={safeArIndex}
+                          onChange={(e) => setArIndex(parseInt(e.target.value))}
+                          className="w-full h-2 bg-[#EFEBE9] rounded-lg appearance-none cursor-pointer accent-[#4CAF50]"
+                        />
+                      ) : (
+                        <p className="text-[11px] text-[#8D6E63] italic">Locked: {currentAspectRatio}</p>
+                      )}
                     </div>
 
-                    {/* Resolution Slider */}
+                    {/* Resolution Slider — dynamic per model */}
                     <div className="space-y-4">
                       <div className="flex justify-between items-center">
                         <label className="text-xs font-black text-[#8D6E63] uppercase tracking-widest flex items-center gap-2">
                           <Zap className="w-3 h-3" />
-                          Res: {RESOLUTIONS[resIndex]}
+                          Res: {currentResolution}
                         </label>
                       </div>
-                      <input 
-                        type="range" min="0" max={RESOLUTIONS.length - 1} step="1"
-                        value={resIndex}
-                        onChange={(e) => setResIndex(parseInt(e.target.value))}
-                        className="w-full h-2 bg-[#EFEBE9] rounded-lg appearance-none cursor-pointer accent-[#4CAF50]"
-                      />
+                      {resolutions.length > 1 ? (
+                        <input
+                          type="range" min="0" max={resolutions.length - 1} step="1"
+                          value={safeResIndex}
+                          onChange={(e) => setResIndex(parseInt(e.target.value))}
+                          className="w-full h-2 bg-[#EFEBE9] rounded-lg appearance-none cursor-pointer accent-[#4CAF50]"
+                        />
+                      ) : (
+                        <p className="text-[11px] text-[#8D6E63] italic">Locked: {currentResolution}</p>
+                      )}
                     </div>
 
-                    {/* Mode Radio Buttons */}
+                    {/* Mode — only when batching is meaningful */}
+                    {manifest.maxBatch > 1 && (
                     <div className="space-y-4">
                       <label className="text-xs font-black text-[#8D6E63] uppercase tracking-widest">Generation Mode</label>
                       <div className="grid grid-cols-2 gap-2">
-                        <button 
+                        <button
                           onClick={() => setMode('normal')}
                           className={`py-3 rounded-xl text-sm font-bold border-2 transition-all ${mode === 'normal' ? 'bg-[#FFF9C4] border-[#FBC02D] text-[#F57F17]' : 'bg-white border-[#EFEBE9] text-[#8D6E63]'}`}
                         >
                           Normal
                         </button>
-                        <button 
+                        <button
                           onClick={() => {
                             setMode('batch');
-                            if (imageCount < 2) setImageCount(4);
+                            if (imageCount < 2) setImageCount(Math.min(4, manifest.maxBatch));
                           }}
                           className={`py-3 rounded-xl text-sm font-bold border-2 transition-all flex flex-col items-center justify-center gap-1 ${mode === 'batch' ? 'bg-[#FFF9C4] border-[#FBC02D] text-[#F57F17]' : 'bg-white border-[#EFEBE9] text-[#8D6E63]'}`}
                         >
@@ -410,6 +442,7 @@ export default function App() {
                         </button>
                       </div>
                     </div>
+                    )}
                   </>
                 ) : (
                   <div className="space-y-6">
@@ -642,18 +675,21 @@ export default function App() {
                 {images.length > 0 ? (
                   images.map((img, idx) => (
                     <motion.div
-                      key={idx}
+                      key={`${img.createdAt}-${idx}`}
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: idx * 0.1 }}
                       className="relative group bg-white rounded-[2rem] overflow-hidden shadow-sm border border-[#D7CCC8] cursor-zoom-in"
                       onClick={() => setPreviewIdx(idx)}
                     >
-                      <img 
-                        src={img} 
-                        alt={`Result ${idx}`} 
-                        className="w-full h-auto object-cover aspect-square" 
+                      <img
+                        src={img.src}
+                        alt={img.prompt.slice(0, 80)}
+                        className="w-full h-auto object-cover aspect-square"
                       />
+                      <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-md text-white text-[9px] px-2 py-1 rounded-full font-bold uppercase tracking-wide">
+                        {img.modelLabel}
+                      </div>
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <div className="bg-white text-neutral-900 p-4 rounded-2xl shadow-xl hover:scale-110 transition-transform">
                           <Maximize className="w-6 h-6" />
@@ -678,8 +714,10 @@ export default function App() {
 
       {/* Fullscreen Gallery Overlay */}
       <AnimatePresence>
-        {previewIdx !== null && (
-          <motion.div 
+        {previewIdx !== null && images[previewIdx] && (() => {
+          const current = images[previewIdx];
+          return (
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -689,25 +727,25 @@ export default function App() {
               handleResetZoom();
             }}
           >
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative w-[76vw] h-[76vh] flex flex-col bg-white rounded-[3rem] overflow-hidden shadow-2xl border border-white/20"
+              className="relative w-[92vw] h-[88vh] flex flex-col lg:flex-row bg-white rounded-[3rem] overflow-hidden shadow-2xl border border-white/20"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Image Viewport */}
-              <div 
+              <div
                 className={`relative flex-1 bg-neutral-50 flex items-center justify-center overflow-hidden group/gallery ${zoomScale > 1 ? 'cursor-move' : 'cursor-default'}`}
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseUp}
               >
-                <motion.img 
-                  src={images[previewIdx]} 
-                  alt="Preview" 
-                  animate={{ 
+                <motion.img
+                  src={current.src}
+                  alt={current.prompt.slice(0, 80)}
+                  animate={{
                     scale: zoomScale,
                     x: zoomOffset.x,
                     y: zoomOffset.y
@@ -715,15 +753,15 @@ export default function App() {
                   transition={isDragging ? { type: 'just' } : { type: 'spring', stiffness: 300, damping: 30 }}
                   className="max-w-full max-h-full object-contain p-4 select-none pointer-events-none"
                 />
-                
+
                 {/* Navigation Controls */}
-                <button 
+                <button
                   onClick={(e) => { e.stopPropagation(); handlePrev(); }}
                   className="absolute left-6 p-5 bg-white/10 hover:bg-white/30 backdrop-blur-xl rounded-full text-white transition-all border border-white/20 opacity-0 group-hover/gallery:opacity-100 z-10"
                 >
                   <ChevronLeft className="w-10 h-10" />
                 </button>
-                <button 
+                <button
                   onClick={(e) => { e.stopPropagation(); handleNext(); }}
                   className="absolute right-6 p-5 bg-white/10 hover:bg-white/30 backdrop-blur-xl rounded-full text-white transition-all border border-white/20 opacity-0 group-hover/gallery:opacity-100 z-10"
                 >
@@ -748,7 +786,7 @@ export default function App() {
                 </div>
 
                 {/* Close Button */}
-                <button 
+                <button
                   onClick={() => {
                     setPreviewIdx(null);
                     handleResetZoom();
@@ -759,63 +797,77 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Gallery Info & Actions */}
-              <div className="p-8 bg-white border-t border-neutral-100">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                  <div className="space-y-1">
-                    <h3 className="text-2xl font-bold text-[#5D4037]">Image #{previewIdx + 1} of {images.length}</h3>
-                    <p className="text-[#8D6E63] font-medium flex items-center gap-2">
-                      <Maximize className="w-4 h-4" /> {ASPECT_RATIOS[arIndex]} • {RESOLUTIONS[resIndex]}
+              {/* Side Info Panel */}
+              <aside className="w-full lg:w-[380px] flex-shrink-0 bg-[#FDF5E6] border-t lg:border-t-0 lg:border-l border-[#D7CCC8] flex flex-col">
+                <header className="px-6 py-5 border-b border-[#EFEBE9]">
+                  <p className="text-[10px] font-black text-[#8D6E63] uppercase tracking-widest mb-1">Image #{previewIdx + 1} of {images.length}</p>
+                  <h3 className="text-lg font-bold text-[#5D4037]">{current.modelLabel}</h3>
+                  <p className="text-[10px] font-mono text-[#8D6E63]/70 mt-1">{current.model}</p>
+                </header>
+
+                <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+                  <div>
+                    <p className="text-[10px] font-black text-[#8D6E63] uppercase tracking-widest mb-2 flex items-center gap-2">
+                      <Sparkles className="w-3 h-3" /> Prompt
+                    </p>
+                    <p className="text-sm text-[#5D4037] leading-relaxed whitespace-pre-wrap break-words bg-white border border-[#EFEBE9] rounded-2xl p-4">
+                      {current.prompt}
                     </p>
                   </div>
-                  
-                  <div className="grid grid-cols-2 sm:flex items-center gap-3 w-full md:w-auto">
-                    <button
-                      onClick={() => {
-                        setBaseImage(images[previewIdx]);
-                        setPrompt("");
-                        setPreviewIdx(null);
-                        alert("Selected as base image for editing!");
-                      }}
-                      className="bg-[#E3F2FD] text-[#1976D2] px-6 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 border border-[#90CAF9] hover:bg-[#BBDEFB] transition-all"
-                    >
-                      <Brush className="w-4 h-4" />
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => {
-                        addReferenceImage(images[previewIdx]);
-                        alert("Added to reference images!");
-                      }}
-                      disabled={referenceImages.length >= 14}
-                      className="bg-[#FFF9C4] text-[#F57F17] px-6 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 border border-[#FBC02D] hover:bg-[#FFF59D] transition-all disabled:opacity-50"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Ref
-                    </button>
-                    <button
-                      onClick={() => handleDownload(images[previewIdx], previewIdx)}
-                      className="bg-[#4CAF50] text-white px-6 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-[#43A047] transition-all"
-                    >
-                      <Download className="w-4 h-4" />
-                      Save
-                    </button>
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(prompt);
-                        alert("Prompt copied!");
-                      }}
-                      className="bg-[#FDF5E6] text-[#8D6E63] px-6 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 border border-[#D7CCC8] hover:bg-[#EFEBE9] transition-all"
-                    >
-                      <Clipboard className="w-4 h-4" />
-                      Prompt
-                    </button>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-white border border-[#EFEBE9] rounded-xl px-3 py-2">
+                      <p className="text-[9px] font-black text-[#8D6E63] uppercase tracking-widest mb-0.5">Aspect Ratio</p>
+                      <p className="text-sm font-bold text-[#5D4037]">{current.aspectRatio}</p>
+                    </div>
+                    <div className="bg-white border border-[#EFEBE9] rounded-xl px-3 py-2">
+                      <p className="text-[9px] font-black text-[#8D6E63] uppercase tracking-widest mb-0.5">Resolution</p>
+                      <p className="text-sm font-bold text-[#5D4037]">{current.resolution}</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-[9px] font-black text-[#8D6E63] uppercase tracking-widest mb-1">Created</p>
+                    <p className="text-xs text-[#5D4037]">{new Date(current.createdAt).toLocaleString()}</p>
                   </div>
                 </div>
-              </div>
+
+                <div className="px-6 py-5 border-t border-[#EFEBE9] grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => {
+                      setBaseImage(current.src);
+                      setPrompt("");
+                      setPreviewIdx(null);
+                    }}
+                    className="bg-[#E3F2FD] text-[#1976D2] px-4 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 border border-[#90CAF9] hover:bg-[#BBDEFB] transition-all"
+                  >
+                    <Brush className="w-3 h-3" /> Edit
+                  </button>
+                  <button
+                    onClick={() => addReferenceImage(current.src)}
+                    disabled={referenceImages.length >= manifest.maxRefs || !manifest.supportsRefs}
+                    className="bg-[#FFF9C4] text-[#F57F17] px-4 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 border border-[#FBC02D] hover:bg-[#FFF59D] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <Plus className="w-3 h-3" /> Ref
+                  </button>
+                  <button
+                    onClick={() => handleDownload(current, previewIdx)}
+                    className="bg-[#4CAF50] text-white px-4 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-[#43A047] transition-all"
+                  >
+                    <Download className="w-3 h-3" /> Save
+                  </button>
+                  <button
+                    onClick={() => navigator.clipboard.writeText(current.prompt)}
+                    className="bg-white text-[#8D6E63] px-4 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 border border-[#D7CCC8] hover:bg-[#EFEBE9] transition-all"
+                  >
+                    <Clipboard className="w-3 h-3" /> Copy Prompt
+                  </button>
+                </div>
+              </aside>
             </motion.div>
           </motion.div>
-        )}
+          );
+        })()}
       </AnimatePresence>
     </div>
   );

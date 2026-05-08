@@ -11,6 +11,11 @@ const ALLOWED_MODELS = new Set([
   'google/nano-banana-2',
   'google/nano-banana-pro',
   'google/imagen-4',
+  'google/imagen-4-ultra',
+  'black-forest-labs/flux-2-max',
+  'black-forest-labs/flux-2-pro',
+  'bytedance/seedream-5-lite',
+  'xai/grok-imagine-image',
   'openai/gpt-image-2',
 ]);
 
