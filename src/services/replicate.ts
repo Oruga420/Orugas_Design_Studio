@@ -16,6 +16,8 @@ export interface ImageOptions {
   referenceImages?: string[];
   baseImage?: string;
   model?: ReplicateModel;
+  seed?: number;
+  negativePrompt?: string;
   advanced?: {
     camera?: string;
     angle?: string;
@@ -92,6 +94,8 @@ export async function generateImages(
     count,
     baseImage,
     referenceImages: refs,
+    seed: manifest.supportsSeed ? options.seed : undefined,
+    negativePrompt: manifest.supportsNegativePrompt ? options.negativePrompt : undefined,
   };
 
   if (manifest.fanOutClientSide && count > 1) {

@@ -24,6 +24,8 @@ export interface ModelInputContext {
   count: number;
   baseImage?: string;
   referenceImages: string[];
+  seed?: number;
+  negativePrompt?: string;
 }
 
 export interface ModelManifest {
@@ -36,6 +38,8 @@ export interface ModelManifest {
   supportsRefs: boolean;
   maxRefs: number;
   supportsBaseImage: boolean;
+  supportsSeed: boolean;
+  supportsNegativePrompt: boolean;
   /**
    * Some models (like Imagen) accept only one image per prediction; the
    * client must fan out client-side. Set this true to opt into client-side
@@ -62,16 +66,19 @@ function nanoBananaInput(ctx: ModelInputContext): Record<string, unknown> {
     output_format: 'png',
   };
   if (refs.length) input.image_input = refs;
+  if (typeof ctx.seed === 'number') input.seed = ctx.seed;
   return input;
 }
 
 function imagenInput(ctx: ModelInputContext): Record<string, unknown> {
-  return {
+  const input: Record<string, unknown> = {
     prompt: ctx.prompt,
     aspect_ratio: ctx.aspectRatio,
     output_format: 'png',
     safety_filter_level: 'block_only_high',
   };
+  if (typeof ctx.seed === 'number') input.seed = ctx.seed;
+  return input;
 }
 
 function fluxInput(ctx: ModelInputContext): Record<string, unknown> {
@@ -83,6 +90,8 @@ function fluxInput(ctx: ModelInputContext): Record<string, unknown> {
     output_format: 'png',
   };
   if (refs.length) input.image_prompt = refs[0];
+  if (typeof ctx.seed === 'number') input.seed = ctx.seed;
+  if (ctx.negativePrompt) input.negative_prompt = ctx.negativePrompt;
   return input;
 }
 
@@ -95,14 +104,18 @@ function seedreamInput(ctx: ModelInputContext): Record<string, unknown> {
     output_format: 'png',
   };
   if (refs.length) input.image_input = refs;
+  if (typeof ctx.seed === 'number') input.seed = ctx.seed;
+  if (ctx.negativePrompt) input.negative_prompt = ctx.negativePrompt;
   return input;
 }
 
 function grokInput(ctx: ModelInputContext): Record<string, unknown> {
-  return {
+  const input: Record<string, unknown> = {
     prompt: ctx.prompt,
     aspect_ratio: ctx.aspectRatio,
   };
+  if (typeof ctx.seed === 'number') input.seed = ctx.seed;
+  return input;
 }
 
 function gptImageInput(ctx: ModelInputContext): Record<string, unknown> {
@@ -138,6 +151,8 @@ export const MODELS: Record<ReplicateModel, ModelManifest> = {
     supportsRefs: true,
     maxRefs: 14,
     supportsBaseImage: true,
+    supportsSeed: true,
+    supportsNegativePrompt: false,
     buildInput: nanoBananaInput,
   },
   'google/nano-banana-pro': {
@@ -150,6 +165,8 @@ export const MODELS: Record<ReplicateModel, ModelManifest> = {
     supportsRefs: true,
     maxRefs: 14,
     supportsBaseImage: true,
+    supportsSeed: true,
+    supportsNegativePrompt: false,
     buildInput: nanoBananaInput,
   },
   'google/imagen-4': {
@@ -162,6 +179,8 @@ export const MODELS: Record<ReplicateModel, ModelManifest> = {
     supportsRefs: false,
     maxRefs: 0,
     supportsBaseImage: false,
+    supportsSeed: true,
+    supportsNegativePrompt: false,
     fanOutClientSide: true,
     buildInput: imagenInput,
   },
@@ -175,6 +194,8 @@ export const MODELS: Record<ReplicateModel, ModelManifest> = {
     supportsRefs: false,
     maxRefs: 0,
     supportsBaseImage: false,
+    supportsSeed: true,
+    supportsNegativePrompt: false,
     fanOutClientSide: true,
     buildInput: imagenInput,
   },
@@ -188,6 +209,8 @@ export const MODELS: Record<ReplicateModel, ModelManifest> = {
     supportsRefs: true,
     maxRefs: 8,
     supportsBaseImage: true,
+    supportsSeed: true,
+    supportsNegativePrompt: true,
     buildInput: fluxInput,
   },
   'black-forest-labs/flux-2-pro': {
@@ -200,6 +223,8 @@ export const MODELS: Record<ReplicateModel, ModelManifest> = {
     supportsRefs: true,
     maxRefs: 8,
     supportsBaseImage: true,
+    supportsSeed: true,
+    supportsNegativePrompt: true,
     buildInput: fluxInput,
   },
   'bytedance/seedream-5-lite': {
@@ -212,6 +237,8 @@ export const MODELS: Record<ReplicateModel, ModelManifest> = {
     supportsRefs: true,
     maxRefs: 4,
     supportsBaseImage: true,
+    supportsSeed: true,
+    supportsNegativePrompt: true,
     buildInput: seedreamInput,
   },
   'xai/grok-imagine-image': {
@@ -224,6 +251,8 @@ export const MODELS: Record<ReplicateModel, ModelManifest> = {
     supportsRefs: false,
     maxRefs: 0,
     supportsBaseImage: false,
+    supportsSeed: true,
+    supportsNegativePrompt: false,
     buildInput: grokInput,
   },
   'openai/gpt-image-2': {
@@ -236,6 +265,8 @@ export const MODELS: Record<ReplicateModel, ModelManifest> = {
     supportsRefs: true,
     maxRefs: 4,
     supportsBaseImage: true,
+    supportsSeed: false,
+    supportsNegativePrompt: false,
     buildInput: gptImageInput,
   },
 };

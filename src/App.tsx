@@ -32,6 +32,61 @@ import {
   MorphingDialogContainer,
 } from './components/ui/morphing-dialog';
 
+interface AdvancedFieldProps {
+  icon: React.ReactNode;
+  id: string;
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (v: string) => void;
+  chips: string[];
+}
+
+function AdvancedField({ icon, id, label, placeholder, value, onChange, chips }: AdvancedFieldProps) {
+  return (
+    <div className="space-y-2">
+      <div className="flex justify-between items-center">
+        <Label htmlFor={id} className="text-[10px] font-black text-[#8D6E63] uppercase flex items-center gap-1">
+          {icon} {label}
+        </Label>
+        {value && (
+          <button
+            onClick={() => onChange('')}
+            className="text-[10px] font-bold text-[#8D6E63]/70 hover:text-red-500 hover:underline"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+      <Input
+        id={id}
+        type="text" placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full bg-[#FDF5E6] border-[#D7CCC8] rounded-xl p-3 text-sm outline-none focus-visible:ring-[#4CAF50] focus-visible:ring-offset-0"
+      />
+      <div className="flex flex-wrap gap-1.5">
+        {chips.map(chip => {
+          const active = value === chip;
+          return (
+            <button
+              key={chip}
+              onClick={() => onChange(active ? '' : chip)}
+              className={`text-[10px] px-2.5 py-1 rounded-full border transition-all ${
+                active
+                  ? 'bg-[#FFF9C4] border-[#FBC02D] text-[#F57F17] font-bold'
+                  : 'bg-white border-[#EFEBE9] text-[#8D6E63] hover:border-[#FBC02D] hover:text-[#F57F17]'
+              }`}
+            >
+              {chip}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 interface GeneratedImage {
   src: string;
   prompt: string;
@@ -40,6 +95,9 @@ interface GeneratedImage {
   aspectRatio: string;
   resolution: string;
   createdAt: number;
+  seed?: number;
+  negativePrompt?: string;
+  advanced?: { camera?: string; angle?: string; lighting?: string; filter?: string; style?: string };
 }
 
 export default function App() {
@@ -80,6 +138,8 @@ export default function App() {
     filter: '',
     style: ''
   });
+  const [seed, setSeed] = useState<string>('');
+  const [negativePrompt, setNegativePrompt] = useState<string>('');
 
   const screenSize = useScreenSize();
 
@@ -95,6 +155,10 @@ export default function App() {
     const submittedRes = currentResolution;
     const submittedLabel = manifest.label;
 
+    const advancedHasValues = Object.values(advanced).some((v) => (typeof v === 'string' ? v.trim() : ''));
+    const parsedSeed = seed.trim() === '' ? undefined : Number.parseInt(seed.trim(), 10);
+    const safeSeed = Number.isFinite(parsedSeed) ? parsedSeed : undefined;
+
     try {
       const options: ImageOptions = {
         aspectRatio: submittedAR,
@@ -104,12 +168,16 @@ export default function App() {
         model: submittedModel,
         referenceImages,
         baseImage: baseImage || undefined,
-        advanced: activeTab === 'advanced' ? advanced : undefined
+        advanced: advancedHasValues ? advanced : undefined,
+        seed: safeSeed,
+        negativePrompt: negativePrompt.trim() || undefined,
       };
 
       const result = await generateImages(submittedPrompt, options);
       if (result.images.length > 0) {
         const now = Date.now();
+        const submittedAdvanced = advancedHasValues ? { ...advanced } : undefined;
+        const submittedNegative = negativePrompt.trim() || undefined;
         const newImages: GeneratedImage[] = result.images.map(src => ({
           src,
           prompt: submittedPrompt,
@@ -118,6 +186,9 @@ export default function App() {
           aspectRatio: submittedAR,
           resolution: submittedRes,
           createdAt: now,
+          seed: safeSeed,
+          negativePrompt: submittedNegative,
+          advanced: submittedAdvanced,
         }));
         setImages(prev => [...newImages, ...prev]);
         setBaseImage(null);
@@ -446,66 +517,124 @@ export default function App() {
                   </>
                 ) : (
                   <div className="space-y-6">
+                    <p className="text-[10px] text-[#8D6E63] leading-relaxed bg-[#FDF5E6] border border-[#D7CCC8] rounded-xl px-3 py-2">
+                      <strong>Tip:</strong> Advanced fields are appended to your prompt as technical details. Click a chip to fill, or type your own.
+                    </p>
+
+                    <AdvancedField
+                      icon={<Camera className="w-3 h-3" />}
+                      id="camera" label="Camera"
+                      placeholder="e.g. Leica M11, GoPro, RED Komodo"
+                      value={advanced.camera}
+                      onChange={(v) => setAdvanced({ ...advanced, camera: v })}
+                      chips={['Leica M11', 'Sony A7 IV', 'Canon EOS R5', 'iPhone 15 Pro', 'GoPro Hero 12', 'Hasselblad X2D']}
+                    />
+
+                    <AdvancedField
+                      icon={<Maximize className="w-3 h-3" />}
+                      id="angle" label="Angle"
+                      placeholder="e.g. Low angle, Bird's eye"
+                      value={advanced.angle}
+                      onChange={(v) => setAdvanced({ ...advanced, angle: v })}
+                      chips={['Low angle', "Bird's eye", 'Worm\'s eye', 'Dutch angle', 'Over-the-shoulder', 'Top-down', 'Eye level']}
+                    />
+
+                    <AdvancedField
+                      icon={<Sun className="w-3 h-3" />}
+                      id="lighting" label="Lighting"
+                      placeholder="e.g. Cinematic, Golden hour"
+                      value={advanced.lighting}
+                      onChange={(v) => setAdvanced({ ...advanced, lighting: v })}
+                      chips={['Golden hour', 'Cinematic', 'Soft natural', 'Neon', 'Studio strobe', 'Backlit', 'Moody chiaroscuro', 'Overcast']}
+                    />
+
+                    <AdvancedField
+                      icon={<Palette className="w-3 h-3" />}
+                      id="filter" label="Filter / Mood"
+                      placeholder="e.g. Vintage, Cyberpunk"
+                      value={advanced.filter}
+                      onChange={(v) => setAdvanced({ ...advanced, filter: v })}
+                      chips={['Vintage 35mm', 'Cyberpunk', 'Pastel', 'Noir B&W', 'Polaroid', 'Sepia', 'Teal & orange', 'High contrast']}
+                    />
+
+                    <AdvancedField
+                      icon={<Brush className="w-3 h-3" />}
+                      id="style" label="Style"
+                      placeholder="e.g. Oil painting, 3D Render"
+                      value={advanced.style}
+                      onChange={(v) => setAdvanced({ ...advanced, style: v })}
+                      chips={['Photorealistic', 'Oil painting', 'Watercolor', '3D render', 'Anime', 'Studio Ghibli', 'Pixel art', 'Line art', 'Concept art']}
+                    />
+
+                    {/* Seed */}
                     <div className="space-y-2">
-                      <Label htmlFor="camera" className="text-[10px] font-black text-[#8D6E63] uppercase flex items-center gap-1">
-                        <Camera className="w-3 h-3" /> Camera Type
-                      </Label>
+                      <div className="flex justify-between items-center">
+                        <Label htmlFor="seed" className="text-[10px] font-black text-[#8D6E63] uppercase flex items-center gap-1">
+                          <Sparkles className="w-3 h-3" /> Seed
+                        </Label>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setSeed(String(Math.floor(Math.random() * 2_147_483_647)))}
+                            disabled={!manifest.supportsSeed}
+                            className="text-[10px] font-bold text-[#4CAF50] hover:underline disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            🎲 Random
+                          </button>
+                          {seed && (
+                            <button
+                              onClick={() => setSeed('')}
+                              className="text-[10px] font-bold text-[#8D6E63] hover:underline"
+                            >
+                              Clear
+                            </button>
+                          )}
+                        </div>
+                      </div>
                       <Input
-                        id="camera"
-                        type="text" placeholder="e.g. DSLR, Leica, GoPro"
-                        value={advanced.camera}
-                        onChange={(e) => setAdvanced({...advanced, camera: e.target.value})}
-                        className="w-full bg-[#FDF5E6] border-[#D7CCC8] rounded-xl p-3 text-sm outline-none focus-visible:ring-[#4CAF50] focus-visible:ring-offset-0"
+                        id="seed"
+                        type="number"
+                        placeholder={manifest.supportsSeed ? 'Empty = random per call' : 'Not supported by this model'}
+                        value={seed}
+                        disabled={!manifest.supportsSeed}
+                        onChange={(e) => setSeed(e.target.value)}
+                        className="w-full bg-[#FDF5E6] border-[#D7CCC8] rounded-xl p-3 text-sm outline-none focus-visible:ring-[#4CAF50] focus-visible:ring-offset-0 disabled:opacity-40 disabled:cursor-not-allowed"
                       />
+                      <p className="text-[10px] text-[#8D6E63]/70">Same seed + same prompt = reproducible image.</p>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="angle" className="text-[10px] font-black text-[#8D6E63] uppercase flex items-center gap-1">
-                        <Maximize className="w-3 h-3" /> Angle
-                      </Label>
-                      <Input
-                        id="angle"
-                        type="text" placeholder="e.g. Low angle, Bird's eye"
-                        value={advanced.angle}
-                        onChange={(e) => setAdvanced({...advanced, angle: e.target.value})}
-                        className="w-full bg-[#FDF5E6] border-[#D7CCC8] rounded-xl p-3 text-sm outline-none focus-visible:ring-[#4CAF50] focus-visible:ring-offset-0"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="lighting" className="text-[10px] font-black text-[#8D6E63] uppercase flex items-center gap-1">
-                        <Sun className="w-3 h-3" /> Lighting
-                      </Label>
-                      <Input
-                        id="lighting"
-                        type="text" placeholder="e.g. Cinematic, Golden hour"
-                        value={advanced.lighting}
-                        onChange={(e) => setAdvanced({...advanced, lighting: e.target.value})}
-                        className="w-full bg-[#FDF5E6] border-[#D7CCC8] rounded-xl p-3 text-sm outline-none focus-visible:ring-[#4CAF50] focus-visible:ring-offset-0"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="filter" className="text-[10px] font-black text-[#8D6E63] uppercase flex items-center gap-1">
-                        <Palette className="w-3 h-3" /> Filter
-                      </Label>
-                      <Input
-                        id="filter"
-                        type="text" placeholder="e.g. Vintage, Cyberpunk"
-                        value={advanced.filter}
-                        onChange={(e) => setAdvanced({...advanced, filter: e.target.value})}
-                        className="w-full bg-[#FDF5E6] border-[#D7CCC8] rounded-xl p-3 text-sm outline-none focus-visible:ring-[#4CAF50] focus-visible:ring-offset-0"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="style" className="text-[10px] font-black text-[#8D6E63] uppercase flex items-center gap-1">
-                        <Brush className="w-3 h-3" /> Illustration Style
-                      </Label>
-                      <Input
-                        id="style"
-                        type="text" placeholder="e.g. Oil painting, 3D Render"
-                        value={advanced.style}
-                        onChange={(e) => setAdvanced({...advanced, style: e.target.value})}
-                        className="w-full bg-[#FDF5E6] border-[#D7CCC8] rounded-xl p-3 text-sm outline-none focus-visible:ring-[#4CAF50] focus-visible:ring-offset-0"
-                      />
-                    </div>
+
+                    {/* Negative Prompt — only when supported */}
+                    {manifest.supportsNegativePrompt && (
+                      <div className="space-y-2">
+                        <Label htmlFor="negative" className="text-[10px] font-black text-[#8D6E63] uppercase flex items-center gap-1">
+                          <X className="w-3 h-3" /> Negative Prompt
+                        </Label>
+                        <Textarea
+                          id="negative"
+                          placeholder="What to avoid: e.g. blurry, lowres, watermark, extra fingers"
+                          value={negativePrompt}
+                          onChange={(e) => setNegativePrompt(e.target.value)}
+                          className="w-full min-h-[80px] bg-[#FDF5E6] border-[#D7CCC8] rounded-xl p-3 text-sm outline-none focus-visible:ring-[#4CAF50] focus-visible:ring-offset-0 resize-none"
+                        />
+                      </div>
+                    )}
+                    {!manifest.supportsNegativePrompt && (
+                      <div className="text-[10px] text-[#8D6E63]/60 italic px-1">
+                        Negative prompt: not supported by {manifest.label}. Try FLUX or Seedream.
+                      </div>
+                    )}
+
+                    <button
+                      onClick={() => {
+                        setAdvanced({ camera: '', angle: '', lighting: '', filter: '', style: '' });
+                        setSeed('');
+                        setNegativePrompt('');
+                      }}
+                      className="w-full py-2 px-4 rounded-xl text-[11px] font-bold bg-white text-[#8D6E63] border border-[#D7CCC8] hover:bg-[#FDF5E6] transition-all flex items-center justify-center gap-2"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      Reset Advanced
+                    </button>
+
                     <button
                       onClick={() => {
                         setImages([]);
@@ -826,6 +955,41 @@ export default function App() {
                     </div>
                   </div>
 
+                  {current.advanced && Object.values(current.advanced).some(v => v) && (
+                    <div>
+                      <p className="text-[9px] font-black text-[#8D6E63] uppercase tracking-widest mb-2">Technical Details</p>
+                      <div className="space-y-1.5 bg-white border border-[#EFEBE9] rounded-2xl p-3">
+                        {current.advanced.camera && <div className="flex justify-between text-[11px]"><span className="text-[#8D6E63] font-bold">Camera</span><span className="text-[#5D4037] text-right">{current.advanced.camera}</span></div>}
+                        {current.advanced.angle && <div className="flex justify-between text-[11px]"><span className="text-[#8D6E63] font-bold">Angle</span><span className="text-[#5D4037] text-right">{current.advanced.angle}</span></div>}
+                        {current.advanced.lighting && <div className="flex justify-between text-[11px]"><span className="text-[#8D6E63] font-bold">Lighting</span><span className="text-[#5D4037] text-right">{current.advanced.lighting}</span></div>}
+                        {current.advanced.filter && <div className="flex justify-between text-[11px]"><span className="text-[#8D6E63] font-bold">Filter</span><span className="text-[#5D4037] text-right">{current.advanced.filter}</span></div>}
+                        {current.advanced.style && <div className="flex justify-between text-[11px]"><span className="text-[#8D6E63] font-bold">Style</span><span className="text-[#5D4037] text-right">{current.advanced.style}</span></div>}
+                      </div>
+                    </div>
+                  )}
+
+                  {typeof current.seed === 'number' && (
+                    <div className="bg-white border border-[#EFEBE9] rounded-xl px-3 py-2 flex items-center justify-between">
+                      <span className="text-[9px] font-black text-[#8D6E63] uppercase tracking-widest">Seed</span>
+                      <button
+                        onClick={() => { navigator.clipboard.writeText(String(current.seed)); }}
+                        className="text-xs font-mono font-bold text-[#5D4037] hover:text-[#4CAF50]"
+                        title="Copy seed"
+                      >
+                        {current.seed}
+                      </button>
+                    </div>
+                  )}
+
+                  {current.negativePrompt && (
+                    <div>
+                      <p className="text-[9px] font-black text-[#8D6E63] uppercase tracking-widest mb-1">Negative Prompt</p>
+                      <p className="text-[11px] text-[#5D4037] bg-white border border-[#EFEBE9] rounded-xl p-3 whitespace-pre-wrap break-words">
+                        {current.negativePrompt}
+                      </p>
+                    </div>
+                  )}
+
                   <div>
                     <p className="text-[9px] font-black text-[#8D6E63] uppercase tracking-widest mb-1">Created</p>
                     <p className="text-xs text-[#5D4037]">{new Date(current.createdAt).toLocaleString()}</p>
@@ -837,6 +1001,15 @@ export default function App() {
                     onClick={() => {
                       setBaseImage(current.src);
                       setPrompt("");
+                      if (typeof current.seed === 'number') setSeed(String(current.seed));
+                      if (current.negativePrompt) setNegativePrompt(current.negativePrompt);
+                      if (current.advanced) setAdvanced({
+                        camera: current.advanced.camera || '',
+                        angle: current.advanced.angle || '',
+                        lighting: current.advanced.lighting || '',
+                        filter: current.advanced.filter || '',
+                        style: current.advanced.style || '',
+                      });
                       setPreviewIdx(null);
                     }}
                     className="bg-[#E3F2FD] text-[#1976D2] px-4 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 border border-[#90CAF9] hover:bg-[#BBDEFB] transition-all"
