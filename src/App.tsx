@@ -290,7 +290,13 @@ export default function App() {
     if (resIndex >= m.resolutions.length) setResIndex(0);
     if (imageCount > m.maxBatch) setImageCount(m.maxBatch);
     if (m.maxBatch < 2 && mode === 'batch') setMode('normal');
-    if (!m.supportsRefs) setReferenceImages([]);
+    if (!m.supportsRefs) {
+      setReferenceImages([]);
+    } else if (referenceImages.length > m.maxRefs) {
+      // New model has a lower ref cap: drop the overflow so the wire payload
+      // matches what the UI shows (avoids silently truncating extra refs).
+      setReferenceImages(prev => prev.slice(0, m.maxRefs));
+    }
     if (!m.supportsBaseImage) setBaseImage(null);
   };
 
@@ -682,7 +688,7 @@ export default function App() {
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
                   <h2 className="text-xs font-black text-[#8D6E63] uppercase tracking-widest flex items-center gap-2">
-                    <ImageIcon className="w-4 h-4" /> Reference Images ({referenceImages.length}/14)
+                    <ImageIcon className="w-4 h-4" /> Reference Images ({referenceImages.length}/{manifest.supportsRefs ? manifest.maxRefs : 0})
                   </h2>
                   <div className="flex gap-2">
                     <button 
@@ -721,7 +727,7 @@ export default function App() {
                       </button>
                     </div>
                   ))}
-                  {referenceImages.length > 0 && referenceImages.length < 14 && (
+                  {referenceImages.length > 0 && manifest.supportsRefs && referenceImages.length < manifest.maxRefs && (
                     <label className="w-20 h-20 flex-shrink-0 border-2 border-dashed border-[#D7CCC8] rounded-2xl flex items-center justify-center text-[#8D6E63] hover:border-[#4CAF50] hover:text-[#4CAF50] transition-all cursor-pointer">
                       <Plus className="w-5 h-5" />
                       <input type="file" className="hidden" accept="image/*" multiple onChange={handleFileUpload} />

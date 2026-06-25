@@ -15,7 +15,10 @@ export type ReplicateModel =
   | 'black-forest-labs/flux-2-pro'
   | 'bytedance/seedream-5-lite'
   | 'xai/grok-imagine-image'
-  | 'openai/gpt-image-2';
+  | 'openai/gpt-image-2'
+  | 'krea/krea-2-medium'
+  | 'krea/krea-2-large'
+  | 'krea/krea-2-medium-turbo';
 
 export interface ModelInputContext {
   prompt: string;
@@ -55,6 +58,7 @@ const FLUX_AR = ['1:1', '3:2', '2:3', '4:3', '3:4', '16:9', '9:16', '21:9', '9:2
 const SEEDREAM_AR = ['1:1', '3:2', '2:3', '4:3', '3:4', '16:9', '9:16'];
 const GROK_AR = ['1:1', '16:9', '9:16'];
 const GPT_IMAGE_AR = ['1:1', '3:2', '2:3'];
+const KREA_AR = ['1:1', '4:3', '3:2', '16:9', '2.35:1', '4:5', '2:3', '9:16'];
 
 function nanoBananaInput(ctx: ModelInputContext): Record<string, unknown> {
   const refs = collectRefs(ctx);
@@ -130,6 +134,21 @@ function gptImageInput(ctx: ModelInputContext): Record<string, unknown> {
     moderation: 'auto',
   };
   if (refs.length) input.input_images = refs;
+  return input;
+}
+
+function kreaInput(ctx: ModelInputContext): Record<string, unknown> {
+  const refs = collectRefs(ctx);
+  const input: Record<string, unknown> = {
+    prompt: ctx.prompt,
+    aspect_ratio: ctx.aspectRatio,
+  };
+  // Krea 2 transfers the *style* of reference images (max 10). The Replicate
+  // schema has no img2img base, negative prompt, resolution, output_format, or
+  // batch field. Image size is governed solely by aspect_ratio, and
+  // `creativity` is left to each variant's own default by omitting it.
+  if (refs.length) input.style_reference_images = refs.slice(0, 10);
+  if (typeof ctx.seed === 'number') input.seed = ctx.seed;
   return input;
 }
 
@@ -269,6 +288,51 @@ export const MODELS: Record<ReplicateModel, ModelManifest> = {
     supportsNegativePrompt: false,
     buildInput: gptImageInput,
   },
+  'krea/krea-2-medium': {
+    slug: 'krea/krea-2-medium',
+    label: 'Krea 2 Medium',
+    description: 'Krea 2. Balanced quality + speed, style refs.',
+    aspectRatios: KREA_AR,
+    resolutions: ['1K'],
+    maxBatch: 4,
+    supportsRefs: true,
+    maxRefs: 10,
+    supportsBaseImage: false,
+    supportsSeed: true,
+    supportsNegativePrompt: false,
+    fanOutClientSide: true,
+    buildInput: kreaInput,
+  },
+  'krea/krea-2-large': {
+    slug: 'krea/krea-2-large',
+    label: 'Krea 2 Large',
+    description: 'Krea 2 flagship. Highest quality, style refs.',
+    aspectRatios: KREA_AR,
+    resolutions: ['1K'],
+    maxBatch: 4,
+    supportsRefs: true,
+    maxRefs: 10,
+    supportsBaseImage: false,
+    supportsSeed: true,
+    supportsNegativePrompt: false,
+    fanOutClientSide: true,
+    buildInput: kreaInput,
+  },
+  'krea/krea-2-medium-turbo': {
+    slug: 'krea/krea-2-medium-turbo',
+    label: 'Krea 2 Medium Turbo',
+    description: 'Krea 2 fastest. Speed-optimized, style refs.',
+    aspectRatios: KREA_AR,
+    resolutions: ['1K'],
+    maxBatch: 4,
+    supportsRefs: true,
+    maxRefs: 10,
+    supportsBaseImage: false,
+    supportsSeed: true,
+    supportsNegativePrompt: false,
+    fanOutClientSide: true,
+    buildInput: kreaInput,
+  },
 };
 
 export const MODEL_LIST: ModelManifest[] = [
@@ -281,6 +345,9 @@ export const MODEL_LIST: ModelManifest[] = [
   MODELS['bytedance/seedream-5-lite'],
   MODELS['xai/grok-imagine-image'],
   MODELS['openai/gpt-image-2'],
+  MODELS['krea/krea-2-medium'],
+  MODELS['krea/krea-2-large'],
+  MODELS['krea/krea-2-medium-turbo'],
 ];
 
 export function getModel(slug: ReplicateModel): ModelManifest {

@@ -16,7 +16,15 @@ Image generation app — every model is routed through Replicate via a Vercel se
 
 ## Models (all via Replicate)
 
-- **Nano Banana 2 (Flash)** — `google/nano-banana-2` (Gemini 3.1 Flash Image)
-- **Nano Banana Pro** — `google/nano-banana-pro` (Gemini 3 Pro Image)
-- **Imagen 4** — `google/imagen-4`
-- **GPT Image 2** — `openai/gpt-image-2`
+- **Nano Banana 2 (Flash)** - `google/nano-banana-2` (Gemini 3.1 Flash Image)
+- **Nano Banana Pro** - `google/nano-banana-pro` (Gemini 3 Pro Image)
+- **Imagen 4** - `google/imagen-4`
+- **Imagen 4 Ultra** - `google/imagen-4-ultra`
+- **FLUX 2 Max** - `black-forest-labs/flux-2-max`
+- **FLUX 2 Pro** - `black-forest-labs/flux-2-pro`
+- **Seedream 5 Lite** - `bytedance/seedream-5-lite`
+- **Grok Imagine** - `xai/grok-imagine-image`
+- **GPT Image 2** - `openai/gpt-image-2`
+- **Krea 2 Medium** - `krea/krea-2-medium`
+- **Krea 2 Large** - `krea/krea-2-large`
+- **Krea 2 Medium Turbo** - `krea/krea-2-medium-turbo`

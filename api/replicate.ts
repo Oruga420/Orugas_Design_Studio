@@ -17,6 +17,9 @@ const ALLOWED_MODELS = new Set([
   'bytedance/seedream-5-lite',
   'xai/grok-imagine-image',
   'openai/gpt-image-2',
+  'krea/krea-2-medium',
+  'krea/krea-2-large',
+  'krea/krea-2-medium-turbo',
 ]);
 
 type RequestBody = {
