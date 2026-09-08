@@ -25,6 +25,17 @@ Image generation app — every model is routed through Replicate via a Vercel se
 - **Seedream 5 Lite** - `bytedance/seedream-5-lite`
 - **Grok Imagine** - `xai/grok-imagine-image`
 - **GPT Image 2** - `openai/gpt-image-2`
+- **GPT Image 2.5 Flare** - `openai/gpt-image-2.5-flare`
+- **GPT Image 2.5 Sunburst** - `openai/gpt-image-2.5-sunburst`
+
 - **Krea 2 Medium** - `krea/krea-2-medium`
 - **Krea 2 Large** - `krea/krea-2-large`
 - **Krea 2 Medium Turbo** - `krea/krea-2-medium-turbo`
+
+GPT Image 2.5 models use the existing Replicate token and support text-to-image,
+base-image editing, up to four reference images, batches of up to six images,
+and seven aspect ratios. They reuse the GPT image payload with automatic quality
+and WebP output. No additional API key is required.
+
+Replicate model documentation: [Flare](https://replicate.com/openai/gpt-image-2.5-flare)
+and [Sunburst](https://replicate.com/openai/gpt-image-2.5-sunburst).
