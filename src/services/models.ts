@@ -22,10 +22,15 @@ export type ReplicateModel =
   | 'krea/krea-2-large'
   | 'krea/krea-2-medium-turbo';
 
+export const GPT_IMAGE_25_QUALITIES = ['max', 'xhigh', 'high', 'medium', 'low'] as const;
+export type ImageQuality = typeof GPT_IMAGE_25_QUALITIES[number];
+export const DEFAULT_IMAGE_QUALITY: ImageQuality = 'medium';
+
 export interface ModelInputContext {
   prompt: string;
   aspectRatio: string;
   resolution: string;
+  quality?: ImageQuality;
   count: number;
   baseImage?: string;
   referenceImages: string[];
@@ -39,6 +44,7 @@ export interface ModelManifest {
   description: string;
   aspectRatios: string[];
   resolutions: string[];
+  qualities?: readonly ImageQuality[];
   maxBatch: number;
   supportsRefs: boolean;
   maxRefs: number;
@@ -138,6 +144,13 @@ function gptImageInput(ctx: ModelInputContext): Record<string, unknown> {
   };
   if (refs.length) input.input_images = refs;
   return input;
+}
+
+function gptImage25Input(ctx: ModelInputContext): Record<string, unknown> {
+  const quality = GPT_IMAGE_25_QUALITIES.includes(ctx.quality as ImageQuality)
+    ? ctx.quality
+    : DEFAULT_IMAGE_QUALITY;
+  return { ...gptImageInput(ctx), quality };
 }
 
 function kreaInput(ctx: ModelInputContext): Record<string, unknown> {
@@ -297,13 +310,14 @@ export const MODELS: Record<ReplicateModel, ModelManifest> = {
     description: 'OpenAI via Replicate. Fast generation and precise edits.',
     aspectRatios: GPT_IMAGE_25_AR,
     resolutions: ['1K'],
+    qualities: GPT_IMAGE_25_QUALITIES,
     maxBatch: 6,
     supportsRefs: true,
     maxRefs: 4,
     supportsBaseImage: true,
     supportsSeed: false,
     supportsNegativePrompt: false,
-    buildInput: gptImageInput,
+    buildInput: gptImage25Input,
   },
   'openai/gpt-image-2.5-sunburst': {
     slug: 'openai/gpt-image-2.5-sunburst',
@@ -311,13 +325,14 @@ export const MODELS: Record<ReplicateModel, ModelManifest> = {
     description: 'OpenAI via Replicate. Extra precision for detailed creative work.',
     aspectRatios: GPT_IMAGE_25_AR,
     resolutions: ['1K'],
+    qualities: GPT_IMAGE_25_QUALITIES,
     maxBatch: 6,
     supportsRefs: true,
     maxRefs: 4,
     supportsBaseImage: true,
     supportsSeed: false,
     supportsNegativePrompt: false,
-    buildInput: gptImageInput,
+    buildInput: gptImage25Input,
   },
   'krea/krea-2-medium': {
     slug: 'krea/krea-2-medium',
