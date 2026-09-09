@@ -4,13 +4,14 @@
  * SDKs from the browser. Per-model logic lives in `./models.ts`.
  */
 
-import { MODELS, ReplicateModel, ModelManifest } from './models';
+import { MODELS, ReplicateModel, ModelManifest, ImageQuality, DEFAULT_IMAGE_QUALITY } from './models';
 
 export type { ReplicateModel };
 
 export interface ImageOptions {
   aspectRatio?: string;
   imageSize?: string;
+  quality?: ImageQuality;
   count?: number;
   mode?: 'normal' | 'batch';
   referenceImages?: string[];
@@ -91,6 +92,9 @@ export async function generateImages(
     prompt: finalPrompt,
     aspectRatio,
     resolution,
+    quality: manifest.qualities
+      ? (manifest.qualities.includes(options.quality as ImageQuality) ? options.quality : DEFAULT_IMAGE_QUALITY)
+      : undefined,
     count,
     baseImage,
     referenceImages: refs,
