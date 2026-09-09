@@ -150,7 +150,8 @@ function gptImage25Input(ctx: ModelInputContext): Record<string, unknown> {
   const quality = GPT_IMAGE_25_QUALITIES.includes(ctx.quality as ImageQuality)
     ? ctx.quality
     : DEFAULT_IMAGE_QUALITY;
-  return { ...gptImageInput(ctx), quality };
+  // 'low' is the API's least restrictive supported moderation setting.
+  return { ...gptImageInput(ctx), quality, moderation: 'low' };
 }
 
 function kreaInput(ctx: ModelInputContext): Record<string, unknown> {
