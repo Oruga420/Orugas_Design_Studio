@@ -5,7 +5,10 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { generateImages, ImageOptions, ReplicateModel } from './services/replicate';
-import { MODELS, MODEL_LIST, ImageQuality, DEFAULT_IMAGE_QUALITY } from './services/models';
+import {
+  MODELS, MODEL_LIST, ImageQuality, DEFAULT_IMAGE_QUALITY,
+  ImageComplexity, DEFAULT_IMAGE_COMPLEXITY,
+} from './services/models';
 import {
   Loader2, Download, Sparkles, Image as ImageIcon,
   Settings2, Sliders, Layout, Zap,
@@ -95,6 +98,7 @@ interface GeneratedImage {
   aspectRatio: string;
   resolution: string;
   quality?: ImageQuality;
+  complexity?: ImageComplexity;
   createdAt: number;
   seed?: number;
   negativePrompt?: string;
@@ -126,6 +130,8 @@ export default function App() {
 
   const [qualityByModel, setQualityByModel] = useState<Partial<Record<ReplicateModel, ImageQuality>>>({});
   const currentQuality = qualityByModel[model] ?? DEFAULT_IMAGE_QUALITY;
+  const [complexityByModel, setComplexityByModel] = useState<Partial<Record<ReplicateModel, ImageComplexity>>>({});
+  const currentComplexity = complexityByModel[model] ?? DEFAULT_IMAGE_COMPLEXITY;
 
   const manifest = useMemo(() => MODELS[model], [model]);
   const aspectRatios = manifest.aspectRatios;
@@ -158,6 +164,7 @@ export default function App() {
     const submittedAR = currentAspectRatio;
     const submittedRes = currentResolution;
     const submittedQuality = manifest.qualities ? currentQuality : undefined;
+    const submittedComplexity = manifest.complexities ? currentComplexity : undefined;
     const submittedLabel = manifest.label;
 
     const advancedHasValues = Object.values(advanced).some((v) => (typeof v === 'string' ? v.trim() : ''));
@@ -169,6 +176,7 @@ export default function App() {
         aspectRatio: submittedAR,
         imageSize: submittedRes,
         quality: submittedQuality,
+        complexity: submittedComplexity,
         count: imageCount,
         mode,
         model: submittedModel,
@@ -192,6 +200,7 @@ export default function App() {
           aspectRatio: submittedAR,
           resolution: submittedRes,
           quality: submittedQuality,
+          complexity: submittedComplexity,
           createdAt: now,
           seed: safeSeed,
           negativePrompt: submittedNegative,
@@ -521,6 +530,27 @@ export default function App() {
                           ))}
                         </select>
                         <p className="text-[11px] text-[#8D6E63]">Higher quality uses more compute and can cost more.</p>
+                      </div>
+                    )}
+
+                    {manifest.complexities && (
+                      <div className="space-y-3">
+                        <Label htmlFor="image-complexity" className="text-xs font-black text-[#8D6E63] uppercase tracking-widest">
+                          Complexity
+                        </Label>
+                        <select
+                          id="image-complexity"
+                          value={currentComplexity}
+                          onChange={(e) => setComplexityByModel(prev => ({ ...prev, [model]: e.target.value as ImageComplexity }))}
+                          className="w-full bg-[#FDF5E6] border-2 border-[#D7CCC8] rounded-xl p-3 text-sm font-bold text-[#5D4037] outline-none focus:border-[#4CAF50]"
+                        >
+                          {manifest.complexities.map(complexity => (
+                            <option key={complexity} value={complexity}>
+                              {complexity.charAt(0).toUpperCase() + complexity.slice(1)}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-[11px] text-[#8D6E63]">How much the model plans before it renders. High suits dense text and complex layouts; Medium and Low suit focused edits. Same price.</p>
                       </div>
                     )}
 
@@ -989,10 +1019,20 @@ export default function App() {
                     </div>
                   </div>
 
-                  {current.quality && (
-                    <div className="bg-white border border-[#EFEBE9] rounded-xl px-3 py-2">
-                      <p className="text-[9px] font-black text-[#8D6E63] uppercase tracking-widest mb-0.5">Quality</p>
-                      <p className="text-sm font-bold text-[#5D4037] uppercase">{current.quality}</p>
+                  {(current.quality || current.complexity) && (
+                    <div className={`grid gap-3 ${current.quality && current.complexity ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                      {current.quality && (
+                        <div className="bg-white border border-[#EFEBE9] rounded-xl px-3 py-2">
+                          <p className="text-[9px] font-black text-[#8D6E63] uppercase tracking-widest mb-0.5">Quality</p>
+                          <p className="text-sm font-bold text-[#5D4037] uppercase">{current.quality}</p>
+                        </div>
+                      )}
+                      {current.complexity && (
+                        <div className="bg-white border border-[#EFEBE9] rounded-xl px-3 py-2">
+                          <p className="text-[9px] font-black text-[#8D6E63] uppercase tracking-widest mb-0.5">Complexity</p>
+                          <p className="text-sm font-bold text-[#5D4037] uppercase">{current.complexity}</p>
+                        </div>
+                      )}
                     </div>
                   )}
 

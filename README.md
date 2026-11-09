@@ -27,6 +27,8 @@ Image generation app — every model is routed through Replicate via a Vercel se
 - **GPT Image 2** - `openai/gpt-image-2`
 - **GPT Image 2.5 Flare** - `openai/gpt-image-2.5-flare`
 - **GPT Image 2.5 Sunburst** - `openai/gpt-image-2.5-sunburst`
+- **GPT Image 2.6 Flare** - `openai/gpt-image-2.6-flare`
+- **GPT Image 2.6 Sunburst** - `openai/gpt-image-2.6-sunburst`
 
 - **Krea 2 Medium** - `krea/krea-2-medium`
 - **Krea 2 Large** - `krea/krea-2-large`
@@ -39,3 +41,13 @@ and WebP output. No additional API key is required.
 
 Replicate model documentation: [Flare](https://replicate.com/openai/gpt-image-2.5-flare)
 and [Sunburst](https://replicate.com/openai/gpt-image-2.5-sunburst).
+
+GPT Image 2.6 models work like 2.5 (same token, editing, four references,
+batches of six, seven aspect ratios, quality picker, low moderation, WebP
+output) and add a **Complexity** picker: how much the model plans before it
+renders. High (the default) suits dense text and complex layouts; Medium and
+Low suit focused edits. Complexity does not change the price. Flare is the
+fast one; Sunburst is for demanding detail, layout and edit accuracy.
+
+Replicate model documentation: [Flare 2.6](https://replicate.com/openai/gpt-image-2.6-flare)
+and [Sunburst 2.6](https://replicate.com/openai/gpt-image-2.6-sunburst).
