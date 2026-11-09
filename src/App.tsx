@@ -293,7 +293,10 @@ export default function App() {
     const link = document.createElement('a');
     link.href = img.src;
     const safeSlug = img.model.replace(/[^a-z0-9]+/gi, '-');
-    link.download = `${safeSlug}-${img.createdAt}-${index}.png`;
+    // Name the file after its real type: Nano Banana returns JPG, GPT Image WebP.
+    const mime = /^data:image\/([a-z0-9]+)[;,]/i.exec(img.src)?.[1]?.toLowerCase();
+    const ext = mime === 'jpeg' ? 'jpg' : mime || 'png';
+    link.download = `${safeSlug}-${img.createdAt}-${index}.${ext}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -679,11 +682,6 @@ export default function App() {
                           onChange={(e) => setNegativePrompt(e.target.value)}
                           className="w-full min-h-[80px] bg-[#FDF5E6] border-[#D7CCC8] rounded-xl p-3 text-sm outline-none focus-visible:ring-[#4CAF50] focus-visible:ring-offset-0 resize-none"
                         />
-                      </div>
-                    )}
-                    {!manifest.supportsNegativePrompt && (
-                      <div className="text-[10px] text-[#8D6E63]/60 italic px-1">
-                        Negative prompt: not supported by {manifest.label}. Try FLUX or Seedream.
                       </div>
                     )}
 
