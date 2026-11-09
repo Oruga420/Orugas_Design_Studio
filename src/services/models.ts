@@ -8,12 +8,8 @@
 
 export type ReplicateModel =
   | 'google/nano-banana-2'
+  | 'google/nano-banana-2.1'
   | 'google/nano-banana-pro'
-  | 'google/imagen-4'
-  | 'google/imagen-4-ultra'
-  | 'black-forest-labs/flux-2-max'
-  | 'black-forest-labs/flux-2-pro'
-  | 'bytedance/seedream-5-lite'
   | 'xai/grok-imagine-image'
   | 'openai/gpt-image-2'
   | 'openai/gpt-image-2.5-flare'
@@ -62,18 +58,15 @@ export interface ModelManifest {
   supportsSeed: boolean;
   supportsNegativePrompt: boolean;
   /**
-   * Some models (like Imagen) accept only one image per prediction; the
-   * client must fan out client-side. Set this true to opt into client-side
-   * fan-out instead of passing `number_of_images` to the model.
+   * Some models (like Nano Banana and Krea) accept only one image per
+   * prediction; the client must fan out client-side. Set this true to opt
+   * into client-side fan-out instead of passing a batch size to the model.
    */
   fanOutClientSide?: boolean;
   buildInput: (ctx: ModelInputContext) => Record<string, unknown>;
 }
 
 const NANO_BANANA_AR = ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'];
-const IMAGEN_AR = ['1:1', '3:4', '4:3', '9:16', '16:9'];
-const FLUX_AR = ['1:1', '3:2', '2:3', '4:3', '3:4', '16:9', '9:16', '21:9', '9:21'];
-const SEEDREAM_AR = ['1:1', '3:2', '2:3', '4:3', '3:4', '16:9', '9:16'];
 const GROK_AR = ['1:1', '16:9', '9:16'];
 const GPT_IMAGE_AR = ['1:1', '3:2', '2:3'];
 const GPT_IMAGE_25_AR = ['1:1', '3:2', '2:3', '4:3', '3:4', '16:9', '9:16'];
@@ -81,54 +74,17 @@ const KREA_AR = ['1:1', '4:3', '3:2', '16:9', '2.35:1', '4:5', '2:3', '9:16'];
 
 function nanoBananaInput(ctx: ModelInputContext): Record<string, unknown> {
   const refs = collectRefs(ctx);
+  // Replicate schema (nano-banana-2, 2.1, pro): prompt, image_input,
+  // aspect_ratio, resolution, output_format. One image per prediction (batches
+  // fan out client-side) and no seed. JPG keeps 2K/4K results under Vercel's
+  // 4.5 MB response limit once base64-encoded; a 2K PNG does not fit.
   const input: Record<string, unknown> = {
     prompt: ctx.prompt,
     aspect_ratio: ctx.aspectRatio,
-    output_resolution: ctx.resolution,
-    number_of_images: ctx.count,
-    output_format: 'png',
+    resolution: ctx.resolution,
+    output_format: 'jpg',
   };
   if (refs.length) input.image_input = refs;
-  if (typeof ctx.seed === 'number') input.seed = ctx.seed;
-  return input;
-}
-
-function imagenInput(ctx: ModelInputContext): Record<string, unknown> {
-  const input: Record<string, unknown> = {
-    prompt: ctx.prompt,
-    aspect_ratio: ctx.aspectRatio,
-    output_format: 'png',
-    safety_filter_level: 'block_only_high',
-  };
-  if (typeof ctx.seed === 'number') input.seed = ctx.seed;
-  return input;
-}
-
-function fluxInput(ctx: ModelInputContext): Record<string, unknown> {
-  const refs = collectRefs(ctx);
-  const input: Record<string, unknown> = {
-    prompt: ctx.prompt,
-    aspect_ratio: ctx.aspectRatio,
-    num_outputs: ctx.count,
-    output_format: 'png',
-  };
-  if (refs.length) input.image_prompt = refs[0];
-  if (typeof ctx.seed === 'number') input.seed = ctx.seed;
-  if (ctx.negativePrompt) input.negative_prompt = ctx.negativePrompt;
-  return input;
-}
-
-function seedreamInput(ctx: ModelInputContext): Record<string, unknown> {
-  const refs = collectRefs(ctx);
-  const input: Record<string, unknown> = {
-    prompt: ctx.prompt,
-    aspect_ratio: ctx.aspectRatio,
-    num_outputs: ctx.count,
-    output_format: 'png',
-  };
-  if (refs.length) input.image_input = refs;
-  if (typeof ctx.seed === 'number') input.seed = ctx.seed;
-  if (ctx.negativePrompt) input.negative_prompt = ctx.negativePrompt;
   return input;
 }
 
@@ -205,8 +161,24 @@ export const MODELS: Record<ReplicateModel, ModelManifest> = {
     supportsRefs: true,
     maxRefs: 14,
     supportsBaseImage: true,
-    supportsSeed: true,
+    supportsSeed: false,
     supportsNegativePrompt: false,
+    fanOutClientSide: true,
+    buildInput: nanoBananaInput,
+  },
+  'google/nano-banana-2.1': {
+    slug: 'google/nano-banana-2.1',
+    label: 'Nano Banana 2.1',
+    description: 'Newest fast Google model. Sharper output and text than 2, up to 4K.',
+    aspectRatios: NANO_BANANA_AR,
+    resolutions: ['1K', '2K', '4K'],
+    maxBatch: 4,
+    supportsRefs: true,
+    maxRefs: 14,
+    supportsBaseImage: true,
+    supportsSeed: false,
+    supportsNegativePrompt: false,
+    fanOutClientSide: true,
     buildInput: nanoBananaInput,
   },
   'google/nano-banana-pro': {
@@ -219,81 +191,10 @@ export const MODELS: Record<ReplicateModel, ModelManifest> = {
     supportsRefs: true,
     maxRefs: 14,
     supportsBaseImage: true,
-    supportsSeed: true,
+    supportsSeed: false,
     supportsNegativePrompt: false,
+    fanOutClientSide: true,
     buildInput: nanoBananaInput,
-  },
-  'google/imagen-4': {
-    slug: 'google/imagen-4',
-    label: 'Imagen 4',
-    description: 'Google photorealism. Single image per call.',
-    aspectRatios: IMAGEN_AR,
-    resolutions: ['1K', '2K'],
-    maxBatch: 6,
-    supportsRefs: false,
-    maxRefs: 0,
-    supportsBaseImage: false,
-    supportsSeed: true,
-    supportsNegativePrompt: false,
-    fanOutClientSide: true,
-    buildInput: imagenInput,
-  },
-  'google/imagen-4-ultra': {
-    slug: 'google/imagen-4-ultra',
-    label: 'Imagen 4 Ultra',
-    description: 'Highest-quality Imagen. Quality over speed/cost.',
-    aspectRatios: IMAGEN_AR,
-    resolutions: ['1K', '2K'],
-    maxBatch: 4,
-    supportsRefs: false,
-    maxRefs: 0,
-    supportsBaseImage: false,
-    supportsSeed: true,
-    supportsNegativePrompt: false,
-    fanOutClientSide: true,
-    buildInput: imagenInput,
-  },
-  'black-forest-labs/flux-2-max': {
-    slug: 'black-forest-labs/flux-2-max',
-    label: 'FLUX 2 Max',
-    description: 'BFL flagship. Top quality, ref support.',
-    aspectRatios: FLUX_AR,
-    resolutions: ['1K', '2K'],
-    maxBatch: 4,
-    supportsRefs: true,
-    maxRefs: 8,
-    supportsBaseImage: true,
-    supportsSeed: true,
-    supportsNegativePrompt: true,
-    buildInput: fluxInput,
-  },
-  'black-forest-labs/flux-2-pro': {
-    slug: 'black-forest-labs/flux-2-pro',
-    label: 'FLUX 2 Pro',
-    description: 'BFL balanced. Quality + speed.',
-    aspectRatios: FLUX_AR,
-    resolutions: ['1K', '2K'],
-    maxBatch: 4,
-    supportsRefs: true,
-    maxRefs: 8,
-    supportsBaseImage: true,
-    supportsSeed: true,
-    supportsNegativePrompt: true,
-    buildInput: fluxInput,
-  },
-  'bytedance/seedream-5-lite': {
-    slug: 'bytedance/seedream-5-lite',
-    label: 'Seedream 5 Lite',
-    description: 'ByteDance. Fast, ref support, edits.',
-    aspectRatios: SEEDREAM_AR,
-    resolutions: ['1K', '2K'],
-    maxBatch: 4,
-    supportsRefs: true,
-    maxRefs: 4,
-    supportsBaseImage: true,
-    supportsSeed: true,
-    supportsNegativePrompt: true,
-    buildInput: seedreamInput,
   },
   'xai/grok-imagine-image': {
     slug: 'xai/grok-imagine-image',
@@ -434,12 +335,8 @@ export const MODELS: Record<ReplicateModel, ModelManifest> = {
 
 export const MODEL_LIST: ModelManifest[] = [
   MODELS['google/nano-banana-2'],
+  MODELS['google/nano-banana-2.1'],
   MODELS['google/nano-banana-pro'],
-  MODELS['google/imagen-4'],
-  MODELS['google/imagen-4-ultra'],
-  MODELS['black-forest-labs/flux-2-max'],
-  MODELS['black-forest-labs/flux-2-pro'],
-  MODELS['bytedance/seedream-5-lite'],
   MODELS['xai/grok-imagine-image'],
   MODELS['openai/gpt-image-2'],
   MODELS['openai/gpt-image-2.5-flare'],
