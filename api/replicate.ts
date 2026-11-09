@@ -19,6 +19,8 @@ const ALLOWED_MODELS = new Set([
   'openai/gpt-image-2',
   'openai/gpt-image-2.5-flare',
   'openai/gpt-image-2.5-sunburst',
+  'openai/gpt-image-2.6-flare',
+  'openai/gpt-image-2.6-sunburst',
   'krea/krea-2-medium',
   'krea/krea-2-large',
   'krea/krea-2-medium-turbo',

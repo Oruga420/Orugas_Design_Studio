@@ -18,6 +18,8 @@ export type ReplicateModel =
   | 'openai/gpt-image-2'
   | 'openai/gpt-image-2.5-flare'
   | 'openai/gpt-image-2.5-sunburst'
+  | 'openai/gpt-image-2.6-flare'
+  | 'openai/gpt-image-2.6-sunburst'
   | 'krea/krea-2-medium'
   | 'krea/krea-2-large'
   | 'krea/krea-2-medium-turbo';
@@ -26,11 +28,18 @@ export const GPT_IMAGE_25_QUALITIES = ['max', 'xhigh', 'high', 'medium', 'low'] 
 export type ImageQuality = typeof GPT_IMAGE_25_QUALITIES[number];
 export const DEFAULT_IMAGE_QUALITY: ImageQuality = 'medium';
 
+// GPT Image 2.6 adds `complexity`: how much the model plans before it renders.
+// It does not change the price. 'high' is the Replicate default.
+export const GPT_IMAGE_26_COMPLEXITIES = ['high', 'medium', 'low'] as const;
+export type ImageComplexity = typeof GPT_IMAGE_26_COMPLEXITIES[number];
+export const DEFAULT_IMAGE_COMPLEXITY: ImageComplexity = 'high';
+
 export interface ModelInputContext {
   prompt: string;
   aspectRatio: string;
   resolution: string;
   quality?: ImageQuality;
+  complexity?: ImageComplexity;
   count: number;
   baseImage?: string;
   referenceImages: string[];
@@ -45,6 +54,7 @@ export interface ModelManifest {
   aspectRatios: string[];
   resolutions: string[];
   qualities?: readonly ImageQuality[];
+  complexities?: readonly ImageComplexity[];
   maxBatch: number;
   supportsRefs: boolean;
   maxRefs: number;
@@ -152,6 +162,14 @@ function gptImage25Input(ctx: ModelInputContext): Record<string, unknown> {
     : DEFAULT_IMAGE_QUALITY;
   // 'low' is the API's least restrictive supported moderation setting.
   return { ...gptImageInput(ctx), quality, moderation: 'low' };
+}
+
+function gptImage26Input(ctx: ModelInputContext): Record<string, unknown> {
+  const complexity = GPT_IMAGE_26_COMPLEXITIES.includes(ctx.complexity as ImageComplexity)
+    ? ctx.complexity
+    : DEFAULT_IMAGE_COMPLEXITY;
+  // Same payload as 2.5 (quality, low moderation, WebP) plus the new field.
+  return { ...gptImage25Input(ctx), complexity };
 }
 
 function kreaInput(ctx: ModelInputContext): Record<string, unknown> {
@@ -335,6 +353,38 @@ export const MODELS: Record<ReplicateModel, ModelManifest> = {
     supportsNegativePrompt: false,
     buildInput: gptImage25Input,
   },
+  'openai/gpt-image-2.6-flare': {
+    slug: 'openai/gpt-image-2.6-flare',
+    label: 'GPT Image 2.6 Flare',
+    description: 'OpenAI via Replicate. Newest fast model for generation and edits, with complexity control.',
+    aspectRatios: GPT_IMAGE_25_AR,
+    resolutions: ['1K'],
+    qualities: GPT_IMAGE_25_QUALITIES,
+    complexities: GPT_IMAGE_26_COMPLEXITIES,
+    maxBatch: 6,
+    supportsRefs: true,
+    maxRefs: 4,
+    supportsBaseImage: true,
+    supportsSeed: false,
+    supportsNegativePrompt: false,
+    buildInput: gptImage26Input,
+  },
+  'openai/gpt-image-2.6-sunburst': {
+    slug: 'openai/gpt-image-2.6-sunburst',
+    label: 'GPT Image 2.6 Sunburst',
+    description: 'OpenAI via Replicate. Newest detail model for demanding layouts and edits, with complexity control.',
+    aspectRatios: GPT_IMAGE_25_AR,
+    resolutions: ['1K'],
+    qualities: GPT_IMAGE_25_QUALITIES,
+    complexities: GPT_IMAGE_26_COMPLEXITIES,
+    maxBatch: 6,
+    supportsRefs: true,
+    maxRefs: 4,
+    supportsBaseImage: true,
+    supportsSeed: false,
+    supportsNegativePrompt: false,
+    buildInput: gptImage26Input,
+  },
   'krea/krea-2-medium': {
     slug: 'krea/krea-2-medium',
     label: 'Krea 2 Medium',
@@ -394,6 +444,8 @@ export const MODEL_LIST: ModelManifest[] = [
   MODELS['openai/gpt-image-2'],
   MODELS['openai/gpt-image-2.5-flare'],
   MODELS['openai/gpt-image-2.5-sunburst'],
+  MODELS['openai/gpt-image-2.6-flare'],
+  MODELS['openai/gpt-image-2.6-sunburst'],
   MODELS['krea/krea-2-medium'],
   MODELS['krea/krea-2-large'],
   MODELS['krea/krea-2-medium-turbo'],
